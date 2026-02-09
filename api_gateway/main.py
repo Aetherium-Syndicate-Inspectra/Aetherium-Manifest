@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import ipaddress
+import os
+import socket
 from datetime import datetime, timezone
 from statistics import mean
 from typing import Any, Literal
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
+import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
@@ -83,6 +87,17 @@ class Metrics(BaseModel):
 
 METRICS = Metrics()
 TELEMETRY_TS_DB: dict[str, list[dict[str, Any]]] = {}
+STATE_SYNC_ROOMS: dict[str, StateSyncRoom] = {}
+
+METRICS_LOCK = asyncio.Lock()
+TELEMETRY_LOCK = asyncio.Lock()
+ROOMS_LOCK = asyncio.Lock()
+
+PROXY_ALLOWED_HOSTS = {
+    host.strip().lower()
+    for host in os.getenv("AETHERIUM_PROXY_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+}
 
 VOICE_MODEL_MAP: dict[tuple[str, str], str] = {
     ("th", "apac"): "whisper-thai-pro",
@@ -110,6 +125,7 @@ class StateSyncRoom:
         self.shared_state: dict[str, Any] = {}
         self.user_states: dict[str, dict[str, Any]] = {}
         self.clients: list[WebSocket] = []
+        self.lock = asyncio.Lock()
 
     def apply_delta(self, delta: dict[str, Any], user_id: str | None, user_delta: dict[str, Any]) -> dict[str, Any]:
         self.version += 1
@@ -125,9 +141,6 @@ class StateSyncRoom:
             "shared_state": self.shared_state,
             "user_state": self.user_states.get(user_id or "", {}),
         }
-
-
-STATE_SYNC_ROOMS: dict[str, StateSyncRoom] = {}
 
 
 class FirmaValidator:
@@ -160,14 +173,17 @@ def _extract_ws_api_key(websocket: WebSocket) -> str | None:
     return websocket.query_params.get("api_key")
 
 
-def _metrics_snapshot() -> dict[str, Any]:
-    total = METRICS.total_dsl_submissions
-    compliance = 100.0 if total == 0 else round((1 - (METRICS.validation_failures / total)) * 100, 2)
+async def _metrics_snapshot() -> dict[str, Any]:
+    async with METRICS_LOCK:
+        total = METRICS.total_dsl_submissions
+        successful = METRICS.successful_renders
+        failed = METRICS.validation_failures
+    compliance = 100.0 if total == 0 else round((1 - (failed / total)) * 100, 2)
     return {
         "metrics": {
-            "total_dsl_submissions": METRICS.total_dsl_submissions,
-            "successful_renders": METRICS.successful_renders,
-            "validation_failures": METRICS.validation_failures,
+            "total_dsl_submissions": total,
+            "successful_renders": successful,
+            "validation_failures": failed,
         },
         "quality_metrics": {
             "dsl_schema_compliance": compliance,
@@ -181,14 +197,35 @@ def _resolve_voice_model(language: str, region: str) -> str:
     return VOICE_MODEL_MAP.get((language_key, region_key), f"whisper-general-{language_key}")
 
 
-def _room(room_id: str) -> StateSyncRoom:
-    if room_id not in STATE_SYNC_ROOMS:
-        STATE_SYNC_ROOMS[room_id] = StateSyncRoom()
-    return STATE_SYNC_ROOMS[room_id]
+async def _room(room_id: str) -> StateSyncRoom:
+    async with ROOMS_LOCK:
+        if room_id not in STATE_SYNC_ROOMS:
+            STATE_SYNC_ROOMS[room_id] = StateSyncRoom()
+        return STATE_SYNC_ROOMS[room_id]
+
+
+def _is_blocked_proxy_target(hostname: str) -> bool:
+    try:
+        resolved = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        return True
+
+    for _, _, _, _, sockaddr in resolved:
+        address = ipaddress.ip_address(sockaddr[0])
+        if (
+            address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_multicast
+            or address.is_reserved
+            or address.is_unspecified
+        ):
+            return True
+    return False
 
 
 @app.post("/api/v1/cognitive/emit")
-def emit_cognitive_dsl(
+async def emit_cognitive_dsl(
     request: CognitiveEmitRequest,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
     x_model_provider: str | None = Header(default=None, alias="X-Model-Provider"),
@@ -198,17 +235,20 @@ def emit_cognitive_dsl(
     if not x_model_provider or not x_model_version:
         raise HTTPException(status_code=400, detail="missing model provider/version headers")
 
-    METRICS.total_dsl_submissions += 1
+    async with METRICS_LOCK:
+        METRICS.total_dsl_submissions += 1
     passed, violations = FirmaValidator.validate_dsl_response(request)
     if not passed:
-        METRICS.validation_failures += 1
+        async with METRICS_LOCK:
+            METRICS.validation_failures += 1
         return {
             "status": "failed",
             "validation": ValidationResult(status="failed", violations=violations).model_dump(),
-            "metrics": _metrics_snapshot(),
+            "metrics": await _metrics_snapshot(),
         }
 
-    METRICS.successful_renders += 1
+    async with METRICS_LOCK:
+        METRICS.successful_renders += 1
     processing_time_ms = 89
     return {
         "status": "success",
@@ -223,13 +263,13 @@ def emit_cognitive_dsl(
         "metrics": {
             "processing_time_ms": processing_time_ms,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            **_metrics_snapshot(),
+            **(await _metrics_snapshot()),
         },
     }
 
 
 @app.post("/api/v1/cognitive/validate")
-def validate_cognitive_dsl(
+async def validate_cognitive_dsl(
     request: CognitiveEmitRequest,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> dict[str, Any]:
@@ -259,45 +299,54 @@ def health_check() -> dict[str, Any]:
 
 
 @app.get("/api/v1/proxy/fetch")
-def proxy_fetch_url(
+async def proxy_fetch_url(
     url: str = Query(..., min_length=8, max_length=2048),
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> dict[str, Any]:
     _ensure_api_key(x_api_key)
     parsed = urlparse(url)
+    hostname = parsed.hostname
     if parsed.scheme not in {"http", "https"}:
         raise HTTPException(status_code=400, detail="url must be http/https")
+    if not hostname:
+        raise HTTPException(status_code=400, detail="url host is required")
+    if PROXY_ALLOWED_HOSTS and hostname.lower() not in PROXY_ALLOWED_HOSTS:
+        raise HTTPException(status_code=403, detail="url host is not allowlisted")
+    if _is_blocked_proxy_target(hostname):
+        raise HTTPException(status_code=403, detail="url host resolves to a blocked IP range")
 
-    req = Request(url, headers={"User-Agent": "AetheriumProxy/1.0"})
     try:
-        with urlopen(req, timeout=6) as response:
-            text = response.read(120_000).decode("utf-8", errors="ignore")
-            return {
-                "status": "success",
-                "url": url,
-                "content_length": len(text),
-                "snippet": " ".join(text.split())[:1200],
-            }
-    except Exception as exc:  # pragma: no cover - network variance
+        async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "AetheriumProxy/1.0"}) as client:
+            response = await client.get(url)
+            text = response.text[:120_000]
+        return {
+            "status": "success",
+            "url": url,
+            "content_length": len(text),
+            "snippet": " ".join(text.split())[:1200],
+        }
+    except httpx.HTTPError as exc:  # pragma: no cover - network variance
         raise HTTPException(status_code=502, detail=f"proxy fetch failed: {exc}") from exc
 
 
 @app.post("/api/v1/telemetry/ingest")
-def ingest_telemetry(
+async def ingest_telemetry(
     request: TelemetryIngestRequest,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> dict[str, Any]:
     _ensure_api_key(x_api_key)
-    for point in request.points:
-        series = TELEMETRY_TS_DB.setdefault(point.metric, [])
-        series.append(point.model_dump())
-        if len(series) > 2_500:
-            del series[:-2_500]
-    return {"status": "success", "ingested": len(request.points), "series_count": len(TELEMETRY_TS_DB)}
+    async with TELEMETRY_LOCK:
+        for point in request.points:
+            series = TELEMETRY_TS_DB.setdefault(point.metric, [])
+            series.append(point.model_dump())
+            if len(series) > 2_500:
+                del series[:-2_500]
+        series_count = len(TELEMETRY_TS_DB)
+    return {"status": "success", "ingested": len(request.points), "series_count": series_count}
 
 
 @app.get("/api/v1/telemetry/query")
-def query_telemetry(
+async def query_telemetry(
     metric: str,
     window_seconds: int = Query(default=3600, ge=1, le=86_400),
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
@@ -306,7 +355,9 @@ def query_telemetry(
     now = datetime.now(timezone.utc)
     floor_ts = now.timestamp() - window_seconds
     points = []
-    for row in TELEMETRY_TS_DB.get(metric, []):
+    async with TELEMETRY_LOCK:
+        telemetry_rows = list(TELEMETRY_TS_DB.get(metric, []))
+    for row in telemetry_rows:
         ts_value = row["ts"]
         point_ts = ts_value.timestamp() if isinstance(ts_value, datetime) else datetime.fromisoformat(ts_value).timestamp()
         if point_ts >= floor_ts:
@@ -369,10 +420,11 @@ async def cognitive_stream(websocket: WebSocket) -> None:
 
 @app.websocket("/ws/state-sync/{room_id}")
 async def state_sync(websocket: WebSocket, room_id: str) -> None:
-    room = _room(room_id)
+    room = await _room(room_id)
     user_id = websocket.query_params.get("user_id")
     await websocket.accept()
-    room.clients.append(websocket)
+    async with room.lock:
+        room.clients.append(websocket)
     await websocket.send_json({"type": "state_snapshot", **room.snapshot(user_id)})
     try:
         while True:
@@ -382,14 +434,18 @@ async def state_sync(websocket: WebSocket, room_id: str) -> None:
                 continue
             delta = payload.get("delta", {})
             user_delta = payload.get("user_delta", {})
-            snapshot = room.apply_delta(delta=delta, user_id=user_id, user_delta=user_delta)
+            async with room.lock:
+                snapshot = room.apply_delta(delta=delta, user_id=user_id, user_delta=user_delta)
+                targets = list(room.clients)
             message = {"type": "state_updated", **snapshot}
-            for client in list(room.clients):
+            for client in targets:
                 try:
                     await client.send_json(message)
                 except Exception:
-                    if client in room.clients:
-                        room.clients.remove(client)
+                    async with room.lock:
+                        if client in room.clients:
+                            room.clients.remove(client)
     except WebSocketDisconnect:
-        if websocket in room.clients:
-            room.clients.remove(websocket)
+        async with room.lock:
+            if websocket in room.clients:
+                room.clients.remove(websocket)

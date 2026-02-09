@@ -54,6 +54,13 @@ def zero_copy_send(sock: Any, data: bytes | bytearray | memoryview) -> int:
     return total_sent
 
 
+async def zero_copy_send_async(sock: Any, data: bytes | bytearray | memoryview) -> int:
+    mv = memoryview(data)
+    loop = asyncio.get_running_loop()
+    await loop.sock_sendall(sock, mv)
+    return len(mv)
+
+
 def _load_msgspec() -> Any:
     return importlib.import_module("msgspec")
 

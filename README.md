@@ -32,7 +32,7 @@ The `api_gateway/` folder includes a sample Cognitive DSL gateway:
 
 ### AetherBusExtreme Utilities
 `api_gateway/aetherbus_extreme.py` includes:
-- Zero-copy socket send (`memoryview`)
+- Zero-copy socket send (`memoryview`) + async-safe send helper (`loop.sock_sendall`)
 - Immutable envelope models
 - Async queue bus with backpressure
 - MsgPack helpers
@@ -46,6 +46,9 @@ python3 -m http.server 4173
 ```
 
 ### Recommended Next Steps
+- ✅ Upgraded proxy fetch to async `httpx` + SSRF guards (allowlist + private/link-local/loopback IP blocking).
+- ✅ Added asyncio locks to protect in-process mutable state under concurrent requests (metrics/telemetry/state-sync room).
+- ✅ Migrated `tools/contracts/contract_checker.py` schema validation to `jsonschema` and removed payload mutation side-effects from checker logic.
 - ✅ Added server-side URL ingestion proxy endpoint (`/api/v1/proxy/fetch`) to avoid browser CORS limitations.
 - ✅ Added telemetry ingest/query endpoints (`/api/v1/telemetry/*`) as a lightweight time-series store for UX performance analysis.
 - ✅ Added locale bundles (`en`, `th`, `ja`, `es`) as external JSON resources loaded dynamically at runtime.
@@ -78,6 +81,9 @@ Aetherium Manifest คือเลเยอร์แสดงผลฝั่ง 
 โฟลเดอร์ `api_gateway/` มีตัวอย่าง Cognitive DSL gateway พร้อม endpoint สำหรับ emit/validate/health/websocket
 
 ### แนวทางต่อยอด
+- ✅ อัปเกรด proxy เป็น async (`httpx`) พร้อม SSRF protection (allowlist + block private/link-local/loopback IP)
+- ✅ เพิ่ม asyncio locks ครอบ state ที่แก้ไขได้ เพื่อความปลอดภัยในการทำงานพร้อมกัน
+- ✅ เปลี่ยน contract checker ไปใช้ `jsonschema` และตัด side effects ที่ไปแก้ payload ระหว่างการตรวจสอบ
 - ✅ ทำ URL proxy ฝั่งเซิร์ฟเวอร์ผ่าน `/api/v1/proxy/fetch` เพื่อลดปัญหา CORS
 - ✅ เก็บ telemetry ลง time-series store ผ่าน `/api/v1/telemetry/ingest` และสรุปผลผ่าน `/api/v1/telemetry/query`
 - ✅ ทำ i18n แบบแยกไฟล์ภาษาใน `locales/*.json` และโหลดแบบ dynamic
@@ -86,6 +92,9 @@ Aetherium Manifest คือเลเยอร์แสดงผลฝั่ง 
 
 
 ## Extension Ideas
+- Move mutable runtime state to Redis (metrics counters, telemetry cache, ws room membership) for multi-worker consistency.
+- Add signed outbound proxy policy (HMAC request intent + per-tenant allowlist) to harden enterprise SSRF controls.
+- Build contract-fuzz pipeline: property-based payload generators + mutation corpus for schema regression stress tests.
 - Add persisted TSDB backend (InfluxDB/TimescaleDB) with retention + downsampling policies.
 - Add proxy allowlist/denylist + content-type and size guardrails for stronger SSRF safety.
 - Add locale QA checks (missing key scanner + pseudolocale) in CI.

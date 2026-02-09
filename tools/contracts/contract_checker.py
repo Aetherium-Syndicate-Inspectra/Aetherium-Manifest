@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
-import math
 from pathlib import Path
 from typing import Any, Literal
+
+from jsonschema import Draft202012Validator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_DIR = REPO_ROOT / "docs" / "schemas"
@@ -41,72 +41,14 @@ def _load_json(path: Path) -> Any:
         return json.load(handle)
 
 
-def _type_ok(expected: str, value: Any) -> bool:
-    return {
-        "object": lambda v: isinstance(v, dict),
-        "array": lambda v: isinstance(v, list),
-        "string": lambda v: isinstance(v, str),
-        "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
-        "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
-        "boolean": lambda v: isinstance(v, bool),
-    }.get(expected, lambda _v: True)(value)
-
-
-def _validate(schema: dict[str, Any], payload: Any, path: str = "<root>") -> list[str]:
-    errors: list[str] = []
-
-    expected_type = schema.get("type")
-    if expected_type and not _type_ok(expected_type, payload):
-        return [f"{path}: expected {expected_type}, got {type(payload).__name__}"]
-
-    if "const" in schema and payload != schema["const"]:
-        errors.append(f"{path}: expected const value {schema['const']!r}")
-
-    if "enum" in schema and payload not in schema["enum"]:
-        errors.append(f"{path}: value {payload!r} not in enum {schema['enum']!r}")
-
-    if isinstance(payload, (int, float)) and not isinstance(payload, bool):
-        if "minimum" in schema and payload < schema["minimum"]:
-            errors.append(f"{path}: value {payload} below minimum {schema['minimum']}")
-        if "maximum" in schema and payload > schema["maximum"]:
-            errors.append(f"{path}: value {payload} above maximum {schema['maximum']}")
-
-    if isinstance(payload, dict):
-        required = schema.get("required", [])
-        for key in required:
-            if key not in payload:
-                errors.append(f"{path}: missing required property '{key}'")
-
-        properties = schema.get("properties", {})
-        additional_allowed = schema.get("additionalProperties", True)
-        if additional_allowed is False:
-            for key in payload.keys() - properties.keys():
-                errors.append(f"{path}: unexpected property '{key}'")
-
-        for key, subschema in properties.items():
-            if key in payload:
-                errors.extend(_validate(subschema, payload[key], f"{path}.{key}"))
-
-    if isinstance(payload, list):
-        if "minItems" in schema and len(payload) < schema["minItems"]:
-            errors.append(f"{path}: expected at least {schema['minItems']} items")
-        item_schema = schema.get("items")
-        if item_schema:
-            for idx, value in enumerate(payload):
-                errors.extend(_validate(item_schema, value, f"{path}[{idx}]"))
-
-    return errors
-
-
-def _inject_embodiment_defaults(payload: dict[str, Any], audits: list[str]) -> None:
-    visual = payload.setdefault("visual_manifestation", {})
+def _legacy_embodiment_audits(payload: dict[str, Any], audits: list[str]) -> None:
+    visual = payload.get("visual_manifestation", {})
     if "cadence" in visual:
         return
 
     phase = str(payload.get("temporal_state", {}).get("phase", "awakened")).strip().lower()
-    cadence = copy.deepcopy(DEFAULT_CADENCE_BY_PHASE.get(phase, DEFAULT_CADENCE_BY_PHASE["awakened"]))
-    visual["cadence"] = cadence
-    audits.append(f"embodiment_v1: injected deterministic cadence default for phase={phase!r}: {cadence}")
+    cadence = DEFAULT_CADENCE_BY_PHASE.get(phase, DEFAULT_CADENCE_BY_PHASE["awakened"])
+    audits.append(f"embodiment_v1: cadence is absent; recommended deterministic default for phase={phase!r}: {cadence}")
 
 
 def _check_ipw_probability_policy(payload: dict[str, Any], audits: list[str]) -> list[str]:
@@ -116,7 +58,6 @@ def _check_ipw_probability_policy(payload: dict[str, Any], audits: list[str]) ->
         return errors
 
     epsilon = float(policy.get("epsilon", 0.0001))
-    on_violation = policy.get("on_violation", "error")
     predictions = payload.get("predictions", [])
 
     probabilities: list[float] = []
@@ -126,9 +67,6 @@ def _check_ipw_probability_policy(payload: dict[str, Any], audits: list[str]) ->
             errors.append(f"<root>.predictions[{idx}].p: missing or invalid numeric probability")
             continue
         numeric = float(value)
-        if math.isnan(numeric) or math.isinf(numeric):
-            errors.append(f"<root>.predictions[{idx}].p: NaN/Inf is not allowed")
-            continue
         if numeric < 0:
             errors.append(f"<root>.predictions[{idx}].p: negative probability is not allowed")
             continue
@@ -144,27 +82,22 @@ def _check_ipw_probability_policy(payload: dict[str, Any], audits: list[str]) ->
     if abs(total - 1.0) <= epsilon:
         return errors
 
-    if on_violation == "normalize":
-        for row in predictions:
-            row["p"] = row["p"] / total
-        audits.append(
-            (
-                "ipw_validation.audit.normalized=true "
-                f"ipw_validation.audit.original_sum={total:.8f} "
-                f"ipw_validation.audit.epsilon={epsilon}"
-            )
-        )
-        return errors
-
     errors.append(
         f"<root>.predictions: probability sum {total:.8f} violates normalization policy with epsilon={epsilon}"
+    )
+    audits.append(
+        (
+            "ipw_validation.audit.normalized=false "
+            f"ipw_validation.audit.observed_sum={total:.8f} "
+            f"ipw_validation.audit.epsilon={epsilon}"
+        )
     )
     return errors
 
 
 def _apply_contract_policy(contract_name: str, payload: dict[str, Any], audits: list[str], mode: Mode) -> list[str]:
     if contract_name == "embodiment_v1" and mode == "legacy":
-        _inject_embodiment_defaults(payload, audits)
+        _legacy_embodiment_audits(payload, audits)
     if contract_name == "ipw_v1":
         return _check_ipw_probability_policy(payload, audits)
     return []
@@ -178,7 +111,8 @@ def run_contract_checks(mode: Mode = "strict") -> int:
         audits: list[str] = []
 
         errors = _apply_contract_policy(contract_name, payload, audits, mode=mode)
-        errors.extend(_validate(schema, payload))
+        validator = Draft202012Validator(schema)
+        errors.extend(f"{'.'.join(str(p) for p in err.path) or '<root>'}: {err.message}" for err in validator.iter_errors(payload))
 
         if errors:
             failures += 1
