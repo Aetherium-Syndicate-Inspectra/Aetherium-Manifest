@@ -2,6 +2,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 from api_gateway.deterministic_replay import replay_lockstep
 from tools.benchmarks.creative_stress_scenarios import run_scenarios
 from tools.benchmarks.intent_light_knowledge_graph import build_graph
@@ -61,7 +63,7 @@ class IntentLightKnowledgeGraphTests(unittest.TestCase):
 
 
 class ContractPolicyTests(unittest.TestCase):
-    def test_embodiment_injects_deterministic_cadence_default(self) -> None:
+    def test_embodiment_legacy_mode_reports_recommended_cadence_without_mutation(self) -> None:
         payload = {
             "contract_type": "EMBODIMENT_V1",
             "temporal_state": {"phase": "processing", "stability": 0.7},
@@ -75,8 +77,9 @@ class ContractPolicyTests(unittest.TestCase):
         audits: list[str] = []
         errors = _apply_contract_policy("embodiment_v1", payload, audits, mode="legacy")
         self.assertEqual(errors, [])
-        self.assertEqual(payload["visual_manifestation"]["cadence"]["bpm"], 110.0)
+        self.assertNotIn("cadence", payload["visual_manifestation"])
         self.assertTrue(audits)
+        self.assertIn("recommended deterministic default", audits[0])
 
     def test_strict_mode_rejects_missing_cadence(self) -> None:
         payload = {
@@ -105,9 +108,7 @@ class ContractPolicyTests(unittest.TestCase):
         }
         audits: list[str] = []
         policy_errors = _apply_contract_policy("embodiment_v1", payload, audits, mode="strict")
-        from tools.contracts.contract_checker import _validate
-
-        schema_errors = _validate(schema, payload)
+        schema_errors = list(Draft202012Validator(schema).iter_errors(payload))
         self.assertEqual(policy_errors, [])
         self.assertTrue(schema_errors)
 
@@ -128,7 +129,7 @@ class ContractPolicyTests(unittest.TestCase):
         errors = _apply_contract_policy("ipw_v1", payload, audits, mode="strict")
         self.assertTrue(errors)
 
-    def test_ipw_policy_normalizes_when_configured(self) -> None:
+    def test_ipw_policy_reports_sum_violation_without_normalization_side_effect(self) -> None:
         payload = {
             "ipw_type": "IPW_V1",
             "predictions": [
@@ -143,11 +144,11 @@ class ContractPolicyTests(unittest.TestCase):
         }
         audits: list[str] = []
         errors = _apply_contract_policy("ipw_v1", payload, audits, mode="strict")
-        self.assertEqual(errors, [])
-        self.assertAlmostEqual(sum(row["p"] for row in payload["predictions"]), 1.0, places=6)
+        self.assertEqual(len(errors), 1)
+        self.assertAlmostEqual(sum(row["p"] for row in payload["predictions"]), 1.5, places=6)
         self.assertTrue(audits)
-        self.assertIn("ipw_validation.audit.normalized=true", audits[0])
-        self.assertIn("ipw_validation.audit.original_sum=", audits[0])
+        self.assertIn("ipw_validation.audit.normalized=false", audits[0])
+        self.assertIn("ipw_validation.audit.observed_sum=1.50000000", audits[0])
 
 
 class ContractCheckerCliTests(unittest.TestCase):
@@ -175,27 +176,32 @@ class ContractCheckerCliTests(unittest.TestCase):
             )
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("[FAIL] ipw_v1", proc.stdout)
-            self.assertIn("[AUDIT] ipw_validation.audit.normalized=true", proc.stdout)
+            self.assertIn("[AUDIT] ipw_validation.audit.normalized=false", proc.stdout)
         finally:
             Path(payload_path).write_text(original, encoding="utf-8")
 
 
-class GatewayExtensionTests(unittest.TestCase):
+class GatewayExtensionTests(unittest.IsolatedAsyncioTestCase):
     def test_voice_model_resolver_prefers_language_region_pair(self) -> None:
         from api_gateway.main import _resolve_voice_model
 
         self.assertEqual(_resolve_voice_model("th-TH", "apac"), "whisper-thai-pro")
         self.assertEqual(_resolve_voice_model("de-DE", "eu"), "whisper-general-de")
 
-    def test_telemetry_ingest_and_query(self) -> None:
+    async def test_telemetry_ingest_and_query(self) -> None:
         from api_gateway.main import TELEMETRY_TS_DB, TelemetryIngestRequest, ingest_telemetry, query_telemetry
 
         TELEMETRY_TS_DB.clear()
         payload = TelemetryIngestRequest(points=[{"metric": "ux_event_latency", "value": 22.0, "tags": {"event": "emit"}}])
-        result = ingest_telemetry(payload, x_api_key="demo")
+        result = await ingest_telemetry(payload, x_api_key="demo")
         self.assertEqual(result["ingested"], 1)
-        queried = query_telemetry(metric="ux_event_latency", window_seconds=3600, x_api_key="demo")
+        queried = await query_telemetry(metric="ux_event_latency", window_seconds=3600, x_api_key="demo")
         self.assertEqual(queried["count"], 1)
+
+    def test_proxy_guard_blocks_loopback_resolution(self) -> None:
+        from api_gateway.main import _is_blocked_proxy_target
+
+        self.assertTrue(_is_blocked_proxy_target("localhost"))
 
     def test_state_sync_room_supports_shared_and_user_patch(self) -> None:
         from api_gateway.main import StateSyncRoom

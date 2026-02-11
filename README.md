@@ -46,14 +46,15 @@ python3 -m http.server 4173
 ```
 
 ### Recommended Next Steps
-- ✅ Upgraded proxy fetch to async `httpx` + SSRF guards (allowlist + private/link-local/loopback IP blocking).
-- ✅ Added asyncio locks to protect in-process mutable state under concurrent requests (metrics/telemetry/state-sync room).
-- ✅ Migrated `tools/contracts/contract_checker.py` schema validation to `jsonschema` and removed payload mutation side-effects from checker logic.
-- ✅ Added server-side URL ingestion proxy endpoint (`/api/v1/proxy/fetch`) to avoid browser CORS limitations.
-- ✅ Added telemetry ingest/query endpoints (`/api/v1/telemetry/*`) as a lightweight time-series store for UX performance analysis.
-- ✅ Added locale bundles (`en`, `th`, `ja`, `es`) as external JSON resources loaded dynamically at runtime.
-- ✅ Added language/region based voice-model resolver (`/api/v1/voice/model`) and frontend region selector.
-- ✅ Added deterministic multi-client state sync WebSocket (`/ws/state-sync/{room_id}`) with shared + user-specific deltas.
+- ✅ Proxy fetch upgraded to async `httpx` with SSRF guardrails (host allowlist + private/link-local/loopback/rfc-reserved IP blocking).
+- ✅ Mutable runtime states are protected with `asyncio.Lock` (metrics, telemetry store, and state-sync rooms) to ensure concurrency safety.
+- ✅ Contract checker now uses `jsonschema` and keeps payload fixtures immutable during validation (audit-only fallback hints).
+- ✅ Browser URL analysis now routes through server-side proxy endpoint `/api/v1/proxy/fetch` to reduce CORS issues.
+- ✅ Telemetry pipeline now ingests to in-memory time-series storage via `/api/v1/telemetry/ingest` and aggregates via `/api/v1/telemetry/query`.
+- ✅ i18n now uses dynamic locale bundles in `locales/*.json`.
+- ✅ Voice model resolution now supports language-region mapping via `/api/v1/voice/model`, with region selector in Settings.
+- ✅ Deterministic multi-user state synchronization is available via `/ws/state-sync/{room_id}`.
+- ✅ Runtime quality tests were updated to match immutable contract-check behavior and async telemetry endpoints.
 
 ---
 
@@ -89,6 +90,7 @@ Aetherium Manifest คือเลเยอร์แสดงผลฝั่ง 
 - ✅ ทำ i18n แบบแยกไฟล์ภาษาใน `locales/*.json` และโหลดแบบ dynamic
 - ✅ เลือกโมเดลเสียงตามภาษา/ภูมิภาคผ่าน `/api/v1/voice/model` และตัวเลือกภูมิภาคในหน้า Settings
 - ✅ เพิ่ม state sync แบบ deterministic สำหรับหลายผู้ใช้ด้วย `/ws/state-sync/{room_id}`
+- ✅ ปรับปรุงชุดทดสอบ runtime quality ให้สอดคล้องกับพฤติกรรมใหม่ (contract checker แบบไม่แก้ payload และ telemetry endpoint แบบ async)
 
 
 ## Extension Ideas
