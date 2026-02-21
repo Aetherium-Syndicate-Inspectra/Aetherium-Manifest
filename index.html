@@ -182,7 +182,7 @@
 
     .setting-tabs {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 6px;
     }
 
@@ -534,14 +534,38 @@
   <aside class="hud window" id="settings-panel" data-window-key="settings">
     <div class="settings-title">SETTINGS</div>
     <div class="setting-tabs" id="settings-tabs">
-      <button class="tab-btn active" data-tab="display" type="button">Display</button>
+      <button class="tab-btn active" data-tab="system" id="system-tab-btn" type="button">System</button>
+      <button class="tab-btn" data-tab="display" type="button">Display</button>
       <button class="tab-btn" data-tab="panels" type="button">Panels</button>
       <button class="tab-btn" data-tab="links" type="button">Links</button>
       <button class="tab-btn" data-tab="language" type="button">Language</button>
       <button class="tab-btn" data-tab="voice" type="button">Voice</button>
     </div>
 
-    <div class="settings-tab active" data-tab-content="display">
+    <div class="settings-tab active" data-tab-content="system">
+          <div class="row"><strong>AETHERBUS / GUNUI STATUS</strong></div>
+    <div class="row">
+      <div class="row-head"><span>FSM STATE</span><span id="state-text">IDLE</span></div>
+      <span class="chip" id="shape-chip">shape: cloud</span>
+      <span class="chip" id="intent-chip">intent: chat</span>
+      <span class="chip" id="quality-chip">quality: auto</span>
+      <span class="chip" id="gate-chip">gate: accept</span>
+    </div>
+    <div class="row">
+      <div class="row-head"><span>ENERGY</span><span id="energy-text">100%</span></div>
+      <div class="bar-track"><div class="bar" id="energy-bar"></div></div>
+    </div>
+    <div class="row">
+      <div class="row-head"><span>ENTROPY</span><span id="entropy-text">0%</span></div>
+      <div class="bar-track"><div class="bar" id="entropy-bar"></div></div>
+    </div>
+    <div class="row">
+      <div class="row-head"><span>LOAD (CPU HEAT)</span><span id="load-text">0%</span></div>
+      <div class="bar-track"><div class="bar" id="load-bar"></div></div>
+    </div>
+    </div>
+
+    <div class="settings-tab" data-tab-content="display">
       <div class="setting-row">
         <span>Display Page</span>
         <div class="seg" id="display-selector">
@@ -555,7 +579,7 @@
     </div>
 
     <div class="settings-tab" data-tab-content="panels">
-      <div class="setting-row"><label><input type="checkbox" class="panel-toggle" data-target="status" checked /> Status</label></div>
+      
       <div class="setting-row"><label><input type="checkbox" class="panel-toggle" data-target="log" checked /> Intent Log</label></div>
       <div class="setting-row"><label><input type="checkbox" class="panel-toggle" data-target="conversation" checked /> Conversation</label></div>
       <div class="setting-row"><label><input type="checkbox" class="panel-toggle" data-target="composer" checked /> Composer</label></div>
@@ -617,28 +641,7 @@
     </div>
   </aside>
 
-  <aside class="hud window" id="status" data-window-key="status">
-    <div class="row"><strong>AETHERBUS / GUNUI STATUS</strong></div>
-    <div class="row">
-      <div class="row-head"><span>FSM STATE</span><span id="state-text">IDLE</span></div>
-      <span class="chip" id="shape-chip">shape: cloud</span>
-      <span class="chip" id="intent-chip">intent: chat</span>
-      <span class="chip" id="quality-chip">quality: auto</span>
-      <span class="chip" id="gate-chip">gate: accept</span>
-    </div>
-    <div class="row">
-      <div class="row-head"><span>ENERGY</span><span id="energy-text">100%</span></div>
-      <div class="bar-track"><div class="bar" id="energy-bar"></div></div>
-    </div>
-    <div class="row">
-      <div class="row-head"><span>ENTROPY</span><span id="entropy-text">0%</span></div>
-      <div class="bar-track"><div class="bar" id="entropy-bar"></div></div>
-    </div>
-    <div class="row">
-      <div class="row-head"><span>LOAD (CPU HEAT)</span><span id="load-text">0%</span></div>
-      <div class="bar-track"><div class="bar" id="load-bar"></div></div>
-    </div>
-  </aside>
+  
 
   <aside class="hud window" id="log" data-window-key="log"><pre id="intent-json">Intent vector will appear here...</pre></aside>
 
@@ -739,7 +742,7 @@
       qualityChip: document.getElementById('quality-chip'),
       gateChip: document.getElementById('gate-chip'),
       json: document.getElementById('intent-json'),
-      status: document.getElementById('status'),
+      systemTab: document.getElementById('system-tab-btn'),
       compatNote: document.getElementById('compat-note'),
       compatFrame: document.getElementById('compat-frame'),
       chatStream: document.getElementById('chat-stream'),
@@ -768,7 +771,6 @@
 
     const panelRegistry = {
       settings: document.getElementById('settings-panel'),
-      status: document.getElementById('status'),
       log: document.getElementById('log'),
       conversation: document.getElementById('conversation'),
       composer: document.getElementById('composer'),
@@ -1776,7 +1778,7 @@
       refs.displayPage2Energy.textContent = `${Math.round(fsm.energy)}%`;
       refs.displayPage2Entropy.textContent = `${Math.round(fsm.entropy)}%`;
 
-      refs.status.classList.toggle('critical', fsm.state === 'CRITICAL');
+      refs.systemTab.classList.toggle('critical', fsm.state === 'CRITICAL');
       refs.compatNote.textContent = compatMode
         ? 'mode: compatibility (deterministic SVG snapshots every 500ms)'
         : 'mode: realtime';
