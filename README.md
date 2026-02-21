@@ -22,6 +22,7 @@ Aetherium Manifest is the frontend expression layer of the Aetherium ecosystem. 
 - Settings with 5 tabs: `Display`, `Panels`, `Links`, `Language`, `Voice`.
 - External URL analysis entry point in Settings (`Analyze URL`).
 - Event-driven command bus + telemetry counters + delta-state patch helper.
+- Upgraded to an installable web application (PWA) with manifest, service worker, and core assets.
 
 ### API Gateway (Prototype)
 The `api_gateway/` folder includes a sample Cognitive DSL gateway:
@@ -77,6 +78,7 @@ Aetherium Manifest คือเลเยอร์แสดงผลฝั่ง 
 - Settings แบ่ง 5 แท็บ: `Display`, `Panels`, `Links`, `Language`, `Voice`
 - มีช่องวิเคราะห์ลิงก์ URL ภายนอก
 - มีโครง telemetry + event bus + delta-state สำหรับต่อยอด
+- ยกระดับเป็น installable web application (PWA) พร้อม manifest, service worker และ asset แกนหลัก
 
 ### API Gateway (ต้นแบบ)
 โฟลเดอร์ `api_gateway/` มีตัวอย่าง Cognitive DSL gateway พร้อม endpoint สำหรับ emit/validate/health/websocket

@@ -387,15 +387,7 @@ def resolve_voice_model(language: str = "en-US", region: str = "us") -> dict[str
 async def cognitive_stream(websocket: WebSocket) -> None:
     api_key = _extract_ws_api_key(websocket)
     if not api_key:
-        await websocket.accept()
-        await websocket.send_json(
-            {
-                "status": "failed",
-                "detail": "missing X-API-Key",
-                "code": 401,
-            }
-        )
-        await websocket.close(code=1008, reason="missing X-API-Key")
+        await websocket.close(code=1008, reason="Missing X-API-Key")
         return
 
     await websocket.accept()
