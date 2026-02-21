@@ -16,7 +16,7 @@ import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="AGNS Cognitive DSL Gateway", version="1.2.0")
+app = FastAPI(title="AGNS Cognitive DSL Gateway", version="1.3.0")
 
 
 # --- Constants and Configuration ---
@@ -59,25 +59,6 @@ class IntentVector(BaseModel):
     category: str
     emotional_valence: float = Field(ge=-1.0, le=1.0)
     energy_level: float = Field(ge=0.0, le=1.0)
-    semantic_concepts: list[str]
-
-class InferredVisualParameters(BaseModel):
-    base_shape: str
-    turbulence: float
-    particle_density: float
-
-class GenerateRequest(BaseModel):
-    prompt: str
-    model: str = Field(default="gemini-1.5-pro")
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-
-class GenerateResponse(BaseModel):
-    text: str
-    model: str
-    trace_id: str
-    provider: str
-    intent_vector: IntentVector
-    visual_parameters: InferredVisualParameters
 
 class ColorPalette(BaseModel):
     primary: str
@@ -97,6 +78,19 @@ class VisualManifestation(BaseModel):
     chromatic_mode: str
     emergency_override: bool = False
     device_tier: int = Field(default=1, ge=1, le=4)
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    model: str = Field(default="gemini-1.5-pro")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+class GenerateResponse(BaseModel):
+    text: str
+    model: str
+    trace_id: str
+    provider: str
+    intent_vector: IntentVector
+    visual_manifestation: VisualManifestation
 
 class ModelResponse(BaseModel):
     trace_id: str
@@ -135,7 +129,7 @@ class TelemetryIngestRequest(BaseModel):
     points: list[TelemetryPoint]
 
 
-# --- In-memory State and Concurrency --- 
+# --- In-memory State and Concurrency ---
 
 METRICS = Metrics()
 TELEMETRY_TS_DB: dict[str, list[dict[str, Any]]] = {}
@@ -227,63 +221,69 @@ async def invoke_generative_model(prompt: str, model: str, temperature: float) -
 
 # --- Helper Functions ---
 
-def _clamp(value: float, min_val: float, max_val: float) -> float:
-    return max(min_val, min(max_val, value))
-
-def _infer_intent_from_text(text: str) -> dict[str, Any]:
-    """Analyzes text to infer a cognitive and visual intent vector."""
-    t = text.lower()
+def _infer_intent_from_text(text: str) -> tuple[IntentVector, VisualManifestation]:
+    """วิเคราะห์ข้อความที่สร้างขึ้น เพื่อแปลงเป็น Intent Vector และ Visual Parameters"""
+    length = len(text)
     
-    category = "chat"
-    if re.search(r"^(run|execute|deploy|start|stop)", t):
-        category = "command"
-    elif re.search(r"(summary|explain|what|find|search|data|request|help)", t):
-        category = "request"
-    elif re.search(r"(error|fail|broken)", t):
-        category = "error"
-
-    emotional_valence = 0.0
-    if re.search(r"(great|awesome|thanks|beautiful|wonderful)", t):
-        emotional_valence = 0.65
-    elif re.search(r"(angry|sad|confused|tired|bad|wrong)", t):
-        emotional_valence = -0.65
-
-    is_urgent = bool(re.search(r"(urgent|now|asap|immediately|fast)", t))
-    energy_level = _clamp((len(text) / 120) + (0.36 if is_urgent else 0.08), 0, 1)
-
-    concepts = []
-    if re.search(r"(fire|heat|hot|critical)", t): concepts.append("fire")
-    if re.search(r"(flow|water|stream|liquid)", t): concepts.append("flow")
-    if re.search(r"(structure|table|schema|json|order)", t): concepts.append("structure")
-    if re.search(r"(mountain|hill|peak)", t): concepts.append("mountain")
-    if re.search(r"(river|waterfall)", t): concepts.append("river")
-    if re.search(r"(human|body|person)", t): concepts.append("human")
-    if re.search(r"(face|portrait)", t): concepts.append("face")
-    if not concepts: concepts.append("balance")
+    # 1. คำนวณ Energy Level (0.0 - 1.0) จากความยาวและเครื่องหมายอัศเจรีย์
+    exclamations = len(re.findall(r'!', text))
+    energy = min(1.0, 0.3 + (exclamations * 0.15) + (length / 1000.0))
+    
+    # 2. คำนวณ Emotional Valence (-1.0 ถึง 1.0) โดยจำลองจากการตรวจจับคีย์เวิร์ด
+    positive_words = ["ดี", "เยี่ยม", "ยินดี", "ความสุข", "สำเร็จ", "good", "great", "happy"]
+    negative_words = ["แย่", "เสียใจ", "ผิดพลาด", "ปัญหา", "ขออภัย", "bad", "error", "sorry"]
+    
+    pos_count = sum(1 for w in positive_words if w in text.lower())
+    neg_count = sum(1 for w in negative_words if w in text.lower())
+    
+    valence = 0.0
+    if pos_count > neg_count:
+        valence = min(1.0, (pos_count - neg_count) * 0.25)
+    elif neg_count > pos_count:
+        valence = max(-1.0, (neg_count - pos_count) * -0.25)
         
-    base_shape = "sphere"
-    if category == "error": base_shape = "cracks"
-    elif "mountain" in concepts: base_shape = "mountain"
-    elif "river" in concepts: base_shape = "river"
-    elif "face" in concepts: base_shape = "face"
-    elif "human" in concepts: base_shape = "human"
-    elif "flow" in concepts: base_shape = "vortex"
-    elif "structure" in concepts: base_shape = "cube"
-    elif energy_level < 0.25: base_shape = "cloud"
+    # 3. กำหนด Category
+    category = "narrative"
+    if "?" in text:
+        category = "inquiry"
+    elif "!" in text:
+        category = "exclamation"
 
-    return {
-        "intent_vector": {
-            "category": category,
-            "emotional_valence": round(emotional_valence, 2),
-            "energy_level": round(energy_level, 2),
-            "semantic_concepts": concepts,
-        },
-        "visual_parameters": {
-            "base_shape": base_shape,
-            "turbulence": round(_clamp(0.1 + energy_level * 0.8, 0, 1), 2),
-            "particle_density": round(_clamp(0.35 + energy_level * 0.55, 0, 1), 2),
-        }
-    }
+    # 4. แปลง Intent เป็นพารามิเตอร์ทางสายตา (Visual Manifestation)
+    primary_color = "#00FFFF"  # สีหลัก: Cyan (ปกติ/เป็นกลาง)
+    if valence > 0.4:
+        primary_color = "#00FF00"  # สีเขียว (พลังงานบวก)
+    elif valence < -0.4:
+        primary_color = "#FF4500"  # สีส้มแดง (เชิงลบ/เตือนภัย)
+    
+    if energy > 0.8:
+        primary_color = "#FFD700"  # สีทอง (พลังงานสูงมาก)
+        
+    # พลศาสตร์ของอนุภาคแสงอิงตามค่าพลังงาน
+    turbulence = min(1.0, energy * 0.8)
+    particle_count = min(10000, int(2000 + (energy * 8000)))  # จำนวนจุดแสงตามพลังงาน
+    
+    intent = IntentVector(
+        category=category,
+        emotional_valence=valence,
+        energy_level=energy
+    )
+    
+    visual = VisualManifestation(
+        base_shape="fluid_typography", # บอก WebGL ว่าให้เรียงเป็นตัวอักษรแบบของไหล
+        transition_type="emerge",
+        color_palette=ColorPalette(primary=primary_color, secondary="#FFFFFF"),
+        particle_physics=ParticlePhysics(
+            turbulence=turbulence,
+            flow_direction="dynamic_outward",
+            luminance_mass=energy,
+            particle_count=particle_count
+        ),
+        chromatic_mode="reactive",
+        device_tier=2 # ตั้งค่าเริ่มต้นให้รันบน Device ระดับกลาง
+    )
+    
+    return intent, visual
 
 def _ensure_api_key(x_api_key: str | None) -> None:
     if not x_api_key:
@@ -328,21 +328,24 @@ async def generate_text(
     async with METRICS_LOCK:
         METRICS.generative_requests += 1
     try:
+        # 1. เรียกใช้งาน LLM ตามปกติเพื่อสร้างข้อความ
         generated_text = await invoke_generative_model(
             prompt=request.prompt,
             model=request.model,
             temperature=request.temperature
         )
         
-        inferred_data = _infer_intent_from_text(generated_text)
-
+        # 2. ประมวลผล "สมการแห่งเจตจำนง" จากข้อความที่ได้
+        intent_vec, visual_manifest = _infer_intent_from_text(generated_text)
+        
+        # 3. ส่งข้อมูลทั้งหมดกลับให้หน้าบ้านนำไปร้อยเรียงแสง
         return GenerateResponse(
             text=generated_text,
             model=request.model,
             trace_id=str(uuid.uuid4()),
             provider=MODEL_PROVIDER_MAP.get(request.model, "unknown"),
-            intent_vector=inferred_data["intent_vector"],
-            visual_parameters=inferred_data["visual_parameters"],
+            intent_vector=intent_vec,               # <--- ส่งเวกเตอร์เจตจำนง
+            visual_manifestation=visual_manifest    # <--- ส่งสเปคของแสง
         )
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"Model provider error: {e.response.text}")
