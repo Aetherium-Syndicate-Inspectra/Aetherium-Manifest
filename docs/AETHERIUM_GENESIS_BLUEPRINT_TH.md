@@ -30,6 +30,8 @@
 
 ### 2.2 ดวงตาและการรับรู้ (BioVisionNet)
 
+> **Implementation Note:** The concrete implementation of the BioVisionNet philosophy is manifested in the **[BioVisionVS1.1](https://github.com/lnspirafirmaGPK/BioVisionVS1.1)** repository. This system provides the foundational codebase for translating visual stimuli into actionable Qualia for the Aetherium ecosystem.
+
 - **Retinal Dynamics**
   - Rod Cells: ตรวจจับ motion + luminance
   - Cone Cells: ตรวจจับ color + detail
