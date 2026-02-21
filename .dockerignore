@@ -1,0 +1,17 @@
+# ไฟล์และโฟลเดอร์ที่ไม่ต้องการให้ Docker คัดลอกเข้าไปใน Image
+
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# โค้ดของ Backend
+api_gateway
+
+# เอกสาร
+README.md
+AETHERIUM_GENESIS_BLUEPRINT_TH.md

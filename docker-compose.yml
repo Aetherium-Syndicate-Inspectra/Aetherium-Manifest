@@ -1,4 +1,3 @@
-
 # Docker Compose V3.8
 version: '3.8'
 
@@ -15,7 +14,9 @@ services:
       - .env                  # อ่านค่า environment variables จากไฟล์ .env
     volumes:
       # Mount โค้ดของ api_gateway เข้าไปใน container เพื่อการพัฒนา
+      # โดยไม่ทับ node_modules ที่ติดตั้งไว้ใน image
       - ./api_gateway:/app
+      - /app/node_modules
 
   # Service สำหรับ Frontend Web Server
   frontend:
