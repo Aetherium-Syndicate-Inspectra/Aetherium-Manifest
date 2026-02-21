@@ -15,9 +15,21 @@ Sample gateway for receiving Cognitive DSL payloads from external model provider
 - `X-Model-Provider` (emit only)
 - `X-Model-Version` (emit only)
 
-### Run
+### Run (Quick Development)
+For a quick development server, you can use `uvicorn` directly. Note that this mode may not reflect all production environment requirements.
+
 ```bash
+# An API key is required for protected endpoints
+export OPENAI_API_KEY=demo-key
+
 uvicorn api_gateway.main:app --host 0.0.0.0 --port 8080 --reload
+```
+
+### Run (Production-like)
+For an environment that closer resembles production, use the provided shell script. This script ensures that necessary environment variables, like API keys, are set.
+
+```bash
+./api_gateway/start_cognitive_api.sh
 ```
 
 ### Validate Example
@@ -59,12 +71,21 @@ Gateway ตัวอย่างสำหรับรับ Cognitive DSL จา
 - `X-Model-Provider` (เฉพาะ emit)
 - `X-Model-Version` (เฉพาะ emit)
 
-### การรัน
+### การรัน (สำหรับพัฒนาเร็ว)
+สำหรับ Development Server สามารถใช้ `uvicorn` โดยตรงได้เลย แต่โหมดนี้อาจไม่ได้บังคับหรือจำลองสภาพแวดล้อมเหมือน Production ทั้งหมด
+
 ```bash
 # ต้องมี API key สำหรับเรียกใช้งาน endpoint ที่ป้องกันสิทธิ์
 export OPENAI_API_KEY=demo-key
 
 uvicorn api_gateway.main:app --host 0.0.0.0 --port 8080 --reload
+```
+
+### การรัน (สำหรับ Production)
+สำหรับสภาพแวดล้อมที่ใกล้เคียงกับ Production แนะนำให้ใช้สคริปต์ที่เตรียมไว้ ซึ่งจะมีการตรวจสอบและตั้งค่า Environment Variable ที่จำเป็น เช่น API Key ให้ครบถ้วน
+
+```bash
+./api_gateway/start_cognitive_api.sh
 ```
 
 ### ทดสอบ validate
