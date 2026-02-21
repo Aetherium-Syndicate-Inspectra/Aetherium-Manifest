@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import os
+import re
 import socket
 import uuid
 from datetime import datetime, timezone
@@ -15,7 +16,7 @@ import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="AGNS Cognitive DSL Gateway", version="1.1.0")
+app = FastAPI(title="AGNS Cognitive DSL Gateway", version="1.2.0")
 
 
 # --- Constants and Configuration ---
@@ -58,6 +59,25 @@ class IntentVector(BaseModel):
     category: str
     emotional_valence: float = Field(ge=-1.0, le=1.0)
     energy_level: float = Field(ge=0.0, le=1.0)
+    semantic_concepts: list[str]
+
+class InferredVisualParameters(BaseModel):
+    base_shape: str
+    turbulence: float
+    particle_density: float
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    model: str = Field(default="gemini-1.5-pro")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+class GenerateResponse(BaseModel):
+    text: str
+    model: str
+    trace_id: str
+    provider: str
+    intent_vector: IntentVector
+    visual_parameters: InferredVisualParameters
 
 class ColorPalette(BaseModel):
     primary: str
@@ -94,17 +114,6 @@ class CognitiveEmitRequest(BaseModel):
     model_response: ModelResponse
     model_metadata: ModelMetadata
 
-class GenerateRequest(BaseModel):
-    prompt: str
-    model: str = Field(default="gemini-1.5-pro")
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-
-class GenerateResponse(BaseModel):
-    text: str
-    model: str
-    trace_id: str
-    provider: str
-
 class ValidationResult(BaseModel):
     status: Literal["success", "failed"]
     violations: list[str]
@@ -130,7 +139,7 @@ class TelemetryIngestRequest(BaseModel):
 
 METRICS = Metrics()
 TELEMETRY_TS_DB: dict[str, list[dict[str, Any]]] = {}
-STATE_SYNC_ROOMS: dict[str, StateSyncRoom] = {}
+STATE_SYNC_ROOMS: dict[str, 'StateSyncRoom'] = {}
 
 METRICS_LOCK = asyncio.Lock()
 TELEMETRY_LOCK = asyncio.Lock()
@@ -214,10 +223,67 @@ async def invoke_generative_model(prompt: str, model: str, temperature: float) -
             response.raise_for_status()
             return response.json()["choices"][0]["message"]["content"]
 
-    # Placeholder for other providers like Anthropic
     raise HTTPException(status_code=501, detail=f"Provider {provider} not implemented")
 
 # --- Helper Functions ---
+
+def _clamp(value: float, min_val: float, max_val: float) -> float:
+    return max(min_val, min(max_val, value))
+
+def _infer_intent_from_text(text: str) -> dict[str, Any]:
+    """Analyzes text to infer a cognitive and visual intent vector."""
+    t = text.lower()
+    
+    category = "chat"
+    if re.search(r"^(run|execute|deploy|start|stop)", t):
+        category = "command"
+    elif re.search(r"(summary|explain|what|find|search|data|request|help)", t):
+        category = "request"
+    elif re.search(r"(error|fail|broken)", t):
+        category = "error"
+
+    emotional_valence = 0.0
+    if re.search(r"(great|awesome|thanks|beautiful|wonderful)", t):
+        emotional_valence = 0.65
+    elif re.search(r"(angry|sad|confused|tired|bad|wrong)", t):
+        emotional_valence = -0.65
+
+    is_urgent = bool(re.search(r"(urgent|now|asap|immediately|fast)", t))
+    energy_level = _clamp((len(text) / 120) + (0.36 if is_urgent else 0.08), 0, 1)
+
+    concepts = []
+    if re.search(r"(fire|heat|hot|critical)", t): concepts.append("fire")
+    if re.search(r"(flow|water|stream|liquid)", t): concepts.append("flow")
+    if re.search(r"(structure|table|schema|json|order)", t): concepts.append("structure")
+    if re.search(r"(mountain|hill|peak)", t): concepts.append("mountain")
+    if re.search(r"(river|waterfall)", t): concepts.append("river")
+    if re.search(r"(human|body|person)", t): concepts.append("human")
+    if re.search(r"(face|portrait)", t): concepts.append("face")
+    if not concepts: concepts.append("balance")
+        
+    base_shape = "sphere"
+    if category == "error": base_shape = "cracks"
+    elif "mountain" in concepts: base_shape = "mountain"
+    elif "river" in concepts: base_shape = "river"
+    elif "face" in concepts: base_shape = "face"
+    elif "human" in concepts: base_shape = "human"
+    elif "flow" in concepts: base_shape = "vortex"
+    elif "structure" in concepts: base_shape = "cube"
+    elif energy_level < 0.25: base_shape = "cloud"
+
+    return {
+        "intent_vector": {
+            "category": category,
+            "emotional_valence": round(emotional_valence, 2),
+            "energy_level": round(energy_level, 2),
+            "semantic_concepts": concepts,
+        },
+        "visual_parameters": {
+            "base_shape": base_shape,
+            "turbulence": round(_clamp(0.1 + energy_level * 0.8, 0, 1), 2),
+            "particle_density": round(_clamp(0.35 + energy_level * 0.55, 0, 1), 2),
+        }
+    }
 
 def _ensure_api_key(x_api_key: str | None) -> None:
     if not x_api_key:
@@ -236,7 +302,6 @@ async def _metrics_snapshot() -> dict[str, Any]:
         "metrics": metrics_dict,
         "quality_metrics": {"dsl_schema_compliance": compliance},
     }
-
 
 async def _room(room_id: str) -> StateSyncRoom:
     async with ROOMS_LOCK:
@@ -268,11 +333,16 @@ async def generate_text(
             model=request.model,
             temperature=request.temperature
         )
+        
+        inferred_data = _infer_intent_from_text(generated_text)
+
         return GenerateResponse(
             text=generated_text,
             model=request.model,
             trace_id=str(uuid.uuid4()),
-            provider=MODEL_PROVIDER_MAP.get(request.model, "unknown")
+            provider=MODEL_PROVIDER_MAP.get(request.model, "unknown"),
+            intent_vector=inferred_data["intent_vector"],
+            visual_parameters=inferred_data["visual_parameters"],
         )
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"Model provider error: {e.response.text}")
@@ -362,7 +432,7 @@ async def query_telemetry(
     _ensure_api_key(x_api_key)
     now_ts = datetime.now(timezone.utc).timestamp()
     async with TELEMETRY_LOCK:
-        rows = [p for p in TELEMETRY_TS_DB.get(metric, []) if now_ts - p["ts"].timestamp() <= window_seconds]
+        rows = [p for p in TELEMETRY_TS_DB.get(metric, []) if now_ts - datetime.fromisoformat(p["ts"]).timestamp() <= window_seconds]
     values = [p["value"] for p in rows]
     p95 = sorted(values)[int(len(values) * 0.95)] if values else None
     return {
@@ -393,7 +463,6 @@ async def cognitive_stream(websocket: WebSocket) -> None:
             if payload.get("type") != "dsl_submission":
                 await websocket.send_json({"status": "error", "detail": "Invalid message type"})
                 continue
-            # Simulate processing and acknowledging the DSL
             await websocket.send_json({"status": "accepted", "echo": payload})
     except WebSocketDisconnect:
         pass
@@ -416,4 +485,5 @@ async def state_sync(websocket: WebSocket, room_id: str, user_id: str | None = Q
                 await asyncio.gather(*[client.send_json(message) for client in room.clients])
     except WebSocketDisconnect:
         async with room.lock:
-            room.clients.remove(websocket)
+            if websocket in room.clients:
+                room.clients.remove(websocket)
