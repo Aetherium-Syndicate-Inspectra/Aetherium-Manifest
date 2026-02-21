@@ -11,10 +11,8 @@ services:
       dockerfile: Dockerfile    # โดยใช้ Dockerfile ที่อยู่ในนั้น
     ports:
       - "8080:8080"             # map port 8080 ของเครื่อง host ไปยัง port 8080 ของ container
-    environment:
-      # หมายเหตุ: โปรดตั้งค่า API key ของคุณอย่างน้อยหนึ่งตัวในไฟล์ .env
-      # หรือใส่ค่าโดยตรงที่นี่เพื่อการทดสอบ
-      - GOOGLE_API_KEY=YOUR_API_KEY_HERE
+    env_file:
+      - .env                  # อ่านค่า environment variables จากไฟล์ .env
     volumes:
       # Mount โค้ดของ api_gateway เข้าไปใน container เพื่อการพัฒนา
       - ./api_gateway:/app
