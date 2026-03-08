@@ -708,31 +708,63 @@
     const canvas = document.getElementById('nervous-system');
     const ctx = canvas.getContext('2d');
 
-    const AETHERIUM_PALETTE = {
-      AETHER_BLUE: '#4FC3FF',
-      AETHER_CYAN: '#00F5FF',
-      AETHER_PURPLE: '#8A7CFF',
-      AETHER_PINK: '#FF4FD8',
-      AETHER_GOLD: '#FFC857',
-      DEEP_SPACE: '#0B1026',
-      NEBULA_PURPLE: '#402A6E',
-      AURORA_GREEN: '#00FFB3',
-      SOLAR_ORANGE: '#FF7A18',
-      PLASMA_RED: '#FF3D3D'
+    const AMGradients = {
+      THINKING: ['#4FC3FF', '#00F5FF', '#8A7CFF'],
+      CO_CREATE: ['#8A7CFF', '#FF4FD8', '#FFC857'],
+      WARNING: ['#FFC857', '#FF7A18', '#FF3D3D'],
+      NIRODHA: ['#0B1026', '#050505']
+    };
+
+    const AMPalette = {
+      CORE: {
+        AETHER_BLUE: { hex: '#4FC3FF', rgb: [79, 195, 255], state: 'Idle / calm / ready' },
+        AETHER_CYAN: { hex: '#00F5FF', rgb: [0, 245, 255], state: 'Connection active / listening / reasoning flow' },
+        AETHER_PURPLE: { hex: '#8A7CFF', rgb: [138, 124, 255], state: 'Deep reasoning / System 2 / wisdom' },
+        AETHER_PINK: { hex: '#FF4FD8', rgb: [255, 79, 216], state: 'Creative / playful / co-create' },
+        AETHER_GOLD: { hex: '#FFC857', rgb: [255, 200, 87], state: 'Searching / discovery / highlights' }
+      },
+      STATUS: {
+        PLASMA_RED: { hex: '#FF3D3D', rgb: [255, 61, 61], state: 'Error, crisis, policy violation' },
+        SOLAR_ORANGE: { hex: '#FF7A18', rgb: [255, 122, 24], state: 'Warning, overload approaching' },
+        DECAY_BROWN: { hex: '#A52A2A', rgb: [165, 42, 42], state: 'Exhaustion, memory full, DECAY state' },
+        HIGH_LOAD_GOLD: { hex: '#FFD700', rgb: [255, 215, 0], state: 'High processing load / CPU hot' },
+        NEUTRAL_WHITE: { hex: '#FFFFFF', rgb: [255, 255, 255], state: 'Neutral / uncolored / base text' }
+      },
+      BACKGROUND: {
+        DEEP_VOID: { hex: '#050505', rgb: [5, 5, 5], state: 'Base canvas / true void' },
+        DEEP_SPACE: { hex: '#0B1026', rgb: [11, 16, 38], state: 'Nirodha / low activity background' },
+        NEBULA_BLUE: { hex: '#0B1736', rgb: [11, 23, 54], state: 'Normal background layer 1' },
+        NEBULA_PURPLE: { hex: '#402A6E', rgb: [64, 42, 110], state: 'Background layer 2 / gradient top' },
+        DARK_PHI: { hex: '#00008B', rgb: [0, 0, 139], state: 'Nirodha / maintenance / sleep tone' }
+      },
+      INTERACTION: {
+        AURORA_GREEN: { hex: '#00FFB3', rgb: [0, 255, 179], state: 'Success, affirmation, safe zone' },
+        SELECTION_CYAN: { hex: '#00FFFF', rgb: [0, 255, 255], state: 'Selection ring, focus reticle' },
+        GESTURE_GOLD: { hex: '#FFB347', rgb: [255, 179, 71], state: 'Gesture trace / light writing' },
+        RIPPLE_TEAL: { hex: '#00E0FF', rgb: [0, 224, 255], state: 'Touch ripple, hover feedback' },
+        CRACK_HIGHLIGHT: { hex: '#DC143C', rgb: [220, 20, 60], state: 'Crack edges / error fissures' }
+      },
+      GRADIENTS: AMGradients,
+      STATE_MAP: {
+        IDLE: { primary: '#4FC3FF', secondary: '#0B1736' },
+        LISTENING: { primary: '#00F5FF', secondary: '#00FFFF' },
+        THINKING: { primary: '#8A7CFF', secondary: '#4FC3FF' },
+        REASONING: { primary: '#8A7CFF', secondary: '#00F5FF' },
+        CREATIVE: { primary: '#FF4FD8', secondary: '#FFC857' },
+        SEARCHING: { primary: '#FFC857', secondary: '#00FFB3' },
+        HIGH_LOAD: { primary: '#FFD700', secondary: '#FF7A18' },
+        DECAY: { primary: '#A52A2A', secondary: '#0B1026' },
+        WARNING: { primary: '#FF7A18', secondary: '#FFD700' },
+        ERROR: { primary: '#FF3D3D', secondary: '#DC143C' },
+        NIRODHA: { primary: '#0B1026', secondary: '#402A6E' }
+      }
     };
 
     /** @typedef {'IDLE'|'LISTENING'|'THINKING'|'REASONING'|'SEARCHING'|'WARNING'|'ERROR'|'NIRODHA'} CognitionState */
 
-    const palette = {
-      IDLE: AETHERIUM_PALETTE.AETHER_BLUE,
-      LISTENING: AETHERIUM_PALETTE.AETHER_CYAN,
-      THINKING: AETHERIUM_PALETTE.AETHER_PURPLE,
-      REASONING: AETHERIUM_PALETTE.AETHER_CYAN,
-      SEARCHING: AETHERIUM_PALETTE.AETHER_GOLD,
-      WARNING: AETHERIUM_PALETTE.SOLAR_ORANGE,
-      ERROR: AETHERIUM_PALETTE.PLASMA_RED,
-      NIRODHA: AETHERIUM_PALETTE.DEEP_SPACE
-    };
+    const palette = Object.fromEntries(
+      Object.entries(AMPalette.STATE_MAP).map(([state, colors]) => [state, colors.primary])
+    );
 
     function hexToRgb(hex) {
       const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -746,21 +778,11 @@
 
     const AMColorEngine = {
       baseColorForState(state) {
-        switch (state) {
-          case 'IDLE': return AETHERIUM_PALETTE.AETHER_BLUE;
-          case 'LISTENING': return AETHERIUM_PALETTE.AETHER_CYAN;
-          case 'THINKING': return AETHERIUM_PALETTE.AETHER_PURPLE;
-          case 'REASONING': return AETHERIUM_PALETTE.AETHER_CYAN;
-          case 'SEARCHING': return AETHERIUM_PALETTE.AETHER_GOLD;
-          case 'WARNING': return AETHERIUM_PALETTE.SOLAR_ORANGE;
-          case 'ERROR': return AETHERIUM_PALETTE.PLASMA_RED;
-          case 'NIRODHA': return AETHERIUM_PALETTE.DEEP_SPACE;
-          default: return AETHERIUM_PALETTE.AETHER_BLUE;
-        }
+        return AMPalette.STATE_MAP[state]?.primary || AMPalette.CORE.AETHER_BLUE.hex;
       },
       thinkingGradient(t) {
         const phase = Math.max(0, Math.min(0.9999, t));
-        const stops = [AETHERIUM_PALETTE.AETHER_BLUE, AETHERIUM_PALETTE.AETHER_CYAN, AETHERIUM_PALETTE.AETHER_PURPLE];
+        const stops = AMPalette.GRADIENTS.THINKING;
         const idx = Math.min(stops.length - 2, Math.floor(phase * (stops.length - 1)));
         const localT = (phase * (stops.length - 1)) - idx;
         const c1 = hexToRgb(stops[idx]);
@@ -1390,7 +1412,7 @@
         flow_direction: 'orbital',
         velocity: 0.22,
         chaos_factor: 0.18,
-        cognitive_color: hexToRgb(AETHERIUM_PALETTE.AETHER_BLUE),
+        cognitive_color: hexToRgb(AMPalette.CORE.AETHER_BLUE.hex),
         cognitive_intensity: 1,
         particle_glow: 0.4
       },
@@ -2115,8 +2137,8 @@
     }
 
     function drawBackground() {
-      const bgTop = hexToRgb(AETHERIUM_PALETTE.DEEP_SPACE);
-      const bgBottom = hexToRgb(AETHERIUM_PALETTE.NEBULA_PURPLE);
+      const bgTop = hexToRgb(AMPalette.BACKGROUND.DEEP_SPACE.hex);
+      const bgBottom = hexToRgb(AMPalette.BACKGROUND.NEBULA_PURPLE.hex);
       const grad = ctx.createLinearGradient(0, 0, 0, height);
       grad.addColorStop(0, rgbToCss(bgTop, 0.95));
       grad.addColorStop(1, rgbToCss(bgBottom, 0.85));
@@ -2124,7 +2146,7 @@
       ctx.fillRect(0, 0, width, height);
 
       if (fsm.state === 'NIRODHA') {
-        ctx.fillStyle = rgbToCss(hexToRgb(AETHERIUM_PALETTE.DEEP_SPACE), 0.35);
+        ctx.fillStyle = rgbToCss(hexToRgb(AMPalette.BACKGROUND.DEEP_SPACE.hex), 0.35);
         ctx.fillRect(0, 0, width, height);
       }
     }
