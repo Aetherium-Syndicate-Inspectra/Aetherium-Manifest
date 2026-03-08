@@ -564,7 +564,7 @@
       <div class="bar-track"><div class="bar" id="load-bar"></div></div>
     </div>
     <div class="row stat-row">
-      <div class="row-head"><span>MODE</span><span id="val-mode">NEBULA</span></div>
+      <div class="row-head"><span>MODE</span><span id="val-mode">IDLE</span></div>
       <span class="chip" id="val-trust">trust: 0.50</span>
     </div>
     <div id="sys-msg" style="font-size:11px;color:#9fd4ff;">STATUS: ONLINE - AWAITING INTENT</div>
@@ -708,14 +708,83 @@
     const canvas = document.getElementById('nervous-system');
     const ctx = canvas.getContext('2d');
 
+    const AETHERIUM_PALETTE = {
+      AETHER_BLUE: '#4FC3FF',
+      AETHER_CYAN: '#00F5FF',
+      AETHER_PURPLE: '#8A7CFF',
+      AETHER_PINK: '#FF4FD8',
+      AETHER_GOLD: '#FFC857',
+      DEEP_SPACE: '#0B1026',
+      NEBULA_PURPLE: '#402A6E',
+      AURORA_GREEN: '#00FFB3',
+      SOLAR_ORANGE: '#FF7A18',
+      PLASMA_RED: '#FF3D3D'
+    };
+
+    /** @typedef {'IDLE'|'LISTENING'|'THINKING'|'REASONING'|'SEARCHING'|'WARNING'|'ERROR'|'NIRODHA'} CognitionState */
+
     const palette = {
-      IDLE: '#00ffff',
-      LISTENING: '#00ffff',
-      PROCESSING: '#800080',
-      RESONATING: '#ffd700',
-      NIRODHA: '#00008b',
-      CRITICAL: '#dc143c',
-      DECAY: '#a52a2a'
+      IDLE: AETHERIUM_PALETTE.AETHER_BLUE,
+      LISTENING: AETHERIUM_PALETTE.AETHER_CYAN,
+      THINKING: AETHERIUM_PALETTE.AETHER_PURPLE,
+      REASONING: AETHERIUM_PALETTE.AETHER_CYAN,
+      SEARCHING: AETHERIUM_PALETTE.AETHER_GOLD,
+      WARNING: AETHERIUM_PALETTE.SOLAR_ORANGE,
+      ERROR: AETHERIUM_PALETTE.PLASMA_RED,
+      NIRODHA: AETHERIUM_PALETTE.DEEP_SPACE
+    };
+
+    function hexToRgb(hex) {
+      const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      if (!m) return [255, 255, 255];
+      return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+    }
+
+    function rgbToCss(rgb, alpha = 1) {
+      return `rgba(${Math.round(rgb[0])}, ${Math.round(rgb[1])}, ${Math.round(rgb[2])}, ${alpha})`;
+    }
+
+    const AMColorEngine = {
+      baseColorForState(state) {
+        switch (state) {
+          case 'IDLE': return AETHERIUM_PALETTE.AETHER_BLUE;
+          case 'LISTENING': return AETHERIUM_PALETTE.AETHER_CYAN;
+          case 'THINKING': return AETHERIUM_PALETTE.AETHER_PURPLE;
+          case 'REASONING': return AETHERIUM_PALETTE.AETHER_CYAN;
+          case 'SEARCHING': return AETHERIUM_PALETTE.AETHER_GOLD;
+          case 'WARNING': return AETHERIUM_PALETTE.SOLAR_ORANGE;
+          case 'ERROR': return AETHERIUM_PALETTE.PLASMA_RED;
+          case 'NIRODHA': return AETHERIUM_PALETTE.DEEP_SPACE;
+          default: return AETHERIUM_PALETTE.AETHER_BLUE;
+        }
+      },
+      thinkingGradient(t) {
+        const phase = Math.max(0, Math.min(0.9999, t));
+        const stops = [AETHERIUM_PALETTE.AETHER_BLUE, AETHERIUM_PALETTE.AETHER_CYAN, AETHERIUM_PALETTE.AETHER_PURPLE];
+        const idx = Math.min(stops.length - 2, Math.floor(phase * (stops.length - 1)));
+        const localT = (phase * (stops.length - 1)) - idx;
+        const c1 = hexToRgb(stops[idx]);
+        const c2 = hexToRgb(stops[idx + 1]);
+        return [
+          c1[0] + (c2[0] - c1[0]) * localT,
+          c1[1] + (c2[1] - c1[1]) * localT,
+          c1[2] + (c2[2] - c1[2]) * localT
+        ];
+      },
+      hsvFromCognition({ mode, confidence, energy }) {
+        let h;
+        switch (mode) {
+          case 'REASONING': h = 180; break;
+          case 'THINKING': h = 260; break;
+          case 'SEARCHING': h = 50; break;
+          case 'ERROR': h = 0; break;
+          case 'WARNING': h = 30; break;
+          default: h = 200; break;
+        }
+        const s = Math.min(1, Math.max(0.2, confidence));
+        const v = 0.3 + 0.7 * Math.min(1, energy);
+        return { h, s, v };
+      }
     };
 
     const fsm = {
@@ -726,7 +795,7 @@
       empathy: 0.5,
       curiosity: 0.4,
       trust: 0.2,
-      mode: 'NEBULA',
+      mode: 'IDLE',
       shape: 'cloud',
       intentCategory: 'chat',
       turbulence: 0.18,
@@ -1223,8 +1292,10 @@
       draw() {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = neuralShaderInstance.current.color_palette || palette[fsm.state] || palette.IDLE;
-        ctx.globalAlpha = fsm.state === 'NIRODHA' ? 0.28 : 0.45 + Math.sin(Date.now() * 0.006) * 0.15;
+        const particleColor = neuralShaderInstance.current.cognitive_color || hexToRgb(palette[fsm.state] || palette.IDLE);
+        ctx.fillStyle = rgbToCss(particleColor);
+        const particleBaseAlpha = fsm.state === 'NIRODHA' ? 0.12 : 0.25 + (neuralShaderInstance.current.particle_glow * 0.35);
+        ctx.globalAlpha = particleBaseAlpha * neuralShaderInstance.current.cognitive_intensity;
         ctx.fill();
       }
     }
@@ -1261,6 +1332,14 @@
       return (intent.semantic_concepts || []).map(item => String(item).toLowerCase()).includes(String(keyword).toLowerCase());
     }
 
+    function deriveCognitionStateFromIntent(vector) {
+      if (vector.state_flags?.error_state || vector.intent_category === 'error' || hasSemantic(vector, 'paradox')) return 'ERROR';
+      if (vector.intent_category === 'deep_reasoning' || vector.intent_category === 'analysis_request' || hasSemantic(vector, 'logic') || hasSemantic(vector, 'deep')) return 'REASONING';
+      if (vector.intent_category === 'search' || vector.intent_category === 'research' || hasSemantic(vector, 'search')) return 'SEARCHING';
+      if (vector.intent_category === 'equilibrium' || hasSemantic(vector, 'listening')) return 'LISTENING';
+      return 'IDLE';
+    }
+
     function mapIntentToVisual(intent) {
       const vector = normalizeIntentVector(intent);
       const v = vector.visual_parameters || {};
@@ -1280,11 +1359,8 @@
       if (v.base_shape) baseShape = v.base_shape;
       if (v.flow_direction) flowDirection = v.flow_direction;
 
-      let colorPalette = '#FFFFFF';
-      if (vector.energy_level > 0.8) colorPalette = '#FFD700';
-      else if (hasSemantic(vector, 'wisdom')) colorPalette = '#800080';
-      else if (vector.state_flags?.connection_active) colorPalette = '#00FFFF';
-      else if (vector.intent_category === 'error') colorPalette = '#A52A2A';
+      const cognitionState = deriveCognitionStateFromIntent(vector);
+      let colorPalette = AMColorEngine.baseColorForState(cognitionState);
       if (v.color_palette) colorPalette = v.color_palette;
 
       return {
@@ -1300,6 +1376,7 @@
           flow_direction: flowDirection
         },
         velocity: 2 + vector.energy_level * 15,
+        cognition_state: cognitionState,
         state_flags: vector.state_flags
       };
     }
@@ -1312,7 +1389,10 @@
         turbulence: 0.18,
         flow_direction: 'orbital',
         velocity: 0.22,
-        chaos_factor: 0.18
+        chaos_factor: 0.18,
+        cognitive_color: hexToRgb(AETHERIUM_PALETTE.AETHER_BLUE),
+        cognitive_intensity: 1,
+        particle_glow: 0.4
       },
       target: null,
       progress: 1,
@@ -1324,6 +1404,16 @@
           chaos_factor: clamp(params.turbulence ?? this.current.chaos_factor, 0.08, 0.98)
         };
         this.progress = 0;
+      },
+      setCognitiveColor(rgb) {
+        this.current.cognitive_color = [rgb[0], rgb[1], rgb[2]];
+        this.current.color_palette = rgbToCss(rgb);
+      },
+      setCognitiveIntensity(value) {
+        this.current.cognitive_intensity = clamp(value, 0.2, 2);
+      },
+      setParticleGlow(value) {
+        this.current.particle_glow = clamp(value, 0, 1.4);
       },
       runLifecycle() {
         if (!this.target) return;
@@ -1342,8 +1432,8 @@
     const RitualStates = Object.freeze({
       IDLE: 'IDLE',
       LISTENING: 'LISTENING',
-      PROCESSING: 'PROCESSING',
-      MORPHING: 'MORPHING',
+      THINKING: 'THINKING',
+      REASONING: 'REASONING',
       NIRODHA: 'NIRODHA'
     });
 
@@ -1352,22 +1442,34 @@
       transition(event) {
         const s = this.current;
         if (s === RitualStates.IDLE && event === 'PRESS') this.current = RitualStates.LISTENING;
-        else if (s === RitualStates.LISTENING && event === 'SILENCE_DETECTED') this.current = RitualStates.PROCESSING;
-        else if (s === RitualStates.PROCESSING && event === 'INTENT_RECEIVED') this.current = RitualStates.MORPHING;
-        else if (s === RitualStates.MORPHING && event === 'RESET') this.current = RitualStates.IDLE;
+        else if (s === RitualStates.LISTENING && event === 'SILENCE_DETECTED') this.current = RitualStates.THINKING;
+        else if (s === RitualStates.THINKING && event === 'INTENT_RECEIVED') this.current = RitualStates.REASONING;
+        else if (s === RitualStates.REASONING && event === 'RESET') this.current = RitualStates.IDLE;
 
         if (event === 'ENTER_NIRODHA') this.current = RitualStates.NIRODHA;
         else if (s === RitualStates.NIRODHA && event === 'EXIT_NIRODHA') this.current = RitualStates.IDLE;
 
         fsm.state = this.current;
         if (this.current === RitualStates.NIRODHA) fsm.mode = 'NIRODHA';
-        else if ((this.current === RitualStates.MORPHING || this.current === RitualStates.PROCESSING) && fsm.mode !== 'DECAY') fsm.mode = 'REASONING';
-        else if (this.current === RitualStates.LISTENING) fsm.mode = 'PERCEPTION';
-        else if (this.current === RitualStates.IDLE && fsm.mode !== 'DECAY') fsm.mode = 'NEBULA';
+        else if (this.current === RitualStates.THINKING) fsm.mode = 'THINKING';
+        else if (this.current === RitualStates.REASONING) fsm.mode = 'REASONING';
+        else if (this.current === RitualStates.LISTENING) fsm.mode = 'LISTENING';
+        else if (this.current === RitualStates.IDLE && fsm.mode !== 'ERROR') fsm.mode = 'IDLE';
 
         updateHUD();
       }
     };
+
+    function applyColorToRenderer(cognitionState, energyLevel, confidence) {
+      const baseHex = AMColorEngine.baseColorForState(cognitionState);
+      const baseRgb = hexToRgb(baseHex);
+      neuralShaderInstance.setCognitiveColor(baseRgb);
+      const glow = 0.3 + 0.7 * Math.min(1, energyLevel);
+      neuralShaderInstance.setParticleGlow(glow);
+      const intensity = 0.7 + 0.3 * Math.max(0.2, confidence);
+      neuralShaderInstance.setCognitiveIntensity(intensity);
+      fsm.state = cognitionState;
+    }
 
     function updateLifeStateFromIntent(vector) {
       fsm.energy = clamp(fsm.energy - vector.energy_level * 10, 0, 100);
@@ -1377,13 +1479,13 @@
 
       if (vector.intent_category === 'error' || hasSemantic(vector, 'paradox')) {
         fsm.trust = clamp(fsm.trust + 0.05, 0, 1);
-        fsm.mode = 'DECAY';
+        fsm.mode = 'ERROR';
       } else if (vector.intent_category === 'deep_reasoning' || vector.intent_category === 'analysis_request' || hasSemantic(vector, 'logic') || hasSemantic(vector, 'deep')) {
         fsm.mode = 'REASONING';
       } else if (vector.intent_category === 'equilibrium') {
-        fsm.mode = 'PERCEPTION';
+        fsm.mode = 'LISTENING';
       } else {
-        fsm.mode = 'NEBULA';
+        fsm.mode = 'IDLE';
       }
 
       if (fsm.energy <= 0) enterNirodha();
@@ -1405,7 +1507,9 @@
       fsm.turbulence = mapped.visual_parameters.turbulence;
       fsm.shape = shapeAlias[mapped.visual_parameters.base_shape] || mapped.visual_parameters.base_shape;
       fsm.load = clamp(fsm.load + mapped.energy_level * 30, 0, 100);
+      fsm.state = mapped.cognition_state || 'IDLE';
 
+      applyColorToRenderer(fsm.state, mapped.energy_level, 1 - Math.abs(mapped.emotional_valence) * 0.5);
       neuralShaderInstance.updateParameters({
         ...mapped.visual_parameters,
         energy_level: mapped.energy_level
@@ -1462,8 +1566,8 @@
       fsm.curiosity = clamp(fsm.curiosity, 0, 1);
       fsm.trust = clamp(fsm.trust, 0, 1);
 
-      if (fsm.state === 'CRITICAL' && fsm.energy > 32 && fsm.load < 52) {
-        fsm.state = 'RESONATING';
+      if (fsm.state === 'WARNING' && fsm.energy > 32 && fsm.load < 52) {
+        fsm.state = 'IDLE';
       }
 
       if (shadowMemory.deferred.length > PATALIMOKKHA_CODE.maxDeferredItems) {
@@ -1545,7 +1649,7 @@
         fsm.load = clamp(fsm.load - 0.18, 0, 100);
         fsm.entropy = clamp(fsm.entropy - 0.2, 0, 100);
         if (fsm.energy > 45) {
-          fsm.mode = 'NEBULA';
+          fsm.mode = 'IDLE';
           exitNirodha();
         }
         return;
@@ -1557,19 +1661,23 @@
 
       if (fsm.energy <= 8) {
         enterNirodha();
-      } else if (ritualStateMachine.current === 'PROCESSING' || ritualStateMachine.current === 'MORPHING') {
+      } else if (ritualStateMachine.current === 'THINKING') {
+        fsm.mode = 'THINKING';
+      } else if (ritualStateMachine.current === 'REASONING') {
         fsm.mode = 'REASONING';
       } else if (ritualStateMachine.current === 'LISTENING') {
-        fsm.mode = 'PERCEPTION';
+        fsm.mode = 'LISTENING';
       } else {
-        fsm.mode = 'NEBULA';
+        fsm.mode = 'IDLE';
       }
 
-      if (fsm.energy < 10 || fsm.load > 92) {
-        fsm.state = 'CRITICAL';
+      if (fsm.energy < 10 || fsm.load > 95) {
+        fsm.state = 'WARNING';
       } else if (fsm.mode === 'REASONING') {
-        fsm.state = 'PROCESSING';
-      } else if (fsm.mode === 'PERCEPTION') {
+        fsm.state = 'REASONING';
+      } else if (fsm.mode === 'THINKING') {
+        fsm.state = 'THINKING';
+      } else if (fsm.mode === 'LISTENING') {
         fsm.state = 'LISTENING';
       } else {
         fsm.state = 'IDLE';
@@ -1938,12 +2046,12 @@
     async function processUserInput(text) {
       addBubble('user', text);
       ritualStateMachine.transition('PRESS');
-      fsm.mode = 'PERCEPTION';
+      fsm.mode = 'LISTENING';
       await processTranscript(text, 'text');
     }
 
     function renderHUD() {
-      refs.stateText.textContent = ritualStateMachine.current;
+      refs.stateText.textContent = fsm.state;
       refs.energyText.textContent = `${Math.round(fsm.energy)}%`;
       refs.entropyText.textContent = `${Math.round(fsm.entropy)}%`;
       refs.loadText.textContent = `${Math.round(fsm.load)}%`;
@@ -1965,7 +2073,7 @@
       refs.displayPage2Energy.textContent = `${Math.round(fsm.energy)}%`;
       refs.displayPage2Entropy.textContent = `${Math.round(fsm.entropy)}%`;
 
-      refs.systemTab.classList.toggle('critical', fsm.state === 'CRITICAL');
+      refs.systemTab.classList.toggle('critical', fsm.state === 'WARNING' || fsm.state === 'ERROR');
       refs.compatNote.textContent = compatMode
         ? 'mode: compatibility (deterministic SVG snapshots every 500ms)'
         : 'mode: realtime';
@@ -2007,13 +2115,36 @@
     }
 
     function drawBackground() {
-      ctx.fillStyle = 'rgba(5,5,8,0.24)';
+      const bgTop = hexToRgb(AETHERIUM_PALETTE.DEEP_SPACE);
+      const bgBottom = hexToRgb(AETHERIUM_PALETTE.NEBULA_PURPLE);
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, rgbToCss(bgTop, 0.95));
+      grad.addColorStop(1, rgbToCss(bgBottom, 0.85));
+      ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 
       if (fsm.state === 'NIRODHA') {
-        ctx.fillStyle = 'rgba(0, 0, 139, 0.06)';
+        ctx.fillStyle = rgbToCss(hexToRgb(AETHERIUM_PALETTE.DEEP_SPACE), 0.35);
         ctx.fillRect(0, 0, width, height);
       }
+    }
+
+    function updateColorsPerFrame(timeMs) {
+      const t = timeMs * 0.001;
+      const state = fsm.state;
+      if (state === 'REASONING' || state === 'THINKING') {
+        const rgb = AMColorEngine.thinkingGradient((t * 0.2) % 1);
+        neuralShaderInstance.setCognitiveColor(rgb);
+        const pulse = 0.8 + 0.2 * Math.sin(t * 2.0);
+        neuralShaderInstance.setCognitiveIntensity(pulse);
+      } else {
+        const base = hexToRgb(AMColorEngine.baseColorForState(state));
+        neuralShaderInstance.setCognitiveColor(base);
+        neuralShaderInstance.setCognitiveIntensity(state === 'NIRODHA' ? 0.45 : 0.92);
+      }
+
+      const energyGlow = 0.3 + 0.7 * Math.min(1, fsm.energyLevel);
+      neuralShaderInstance.setParticleGlow(energyGlow);
     }
 
     let lastFrameAt = 0;
@@ -2028,6 +2159,7 @@
       drawBackground();
       evolveState();
       neuralShaderInstance.runLifecycle();
+      updateColorsPerFrame(t);
 
       if (!compatMode) {
         for (const p of particles) {
