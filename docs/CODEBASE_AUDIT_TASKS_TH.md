@@ -5,70 +5,50 @@
 ## 1) งานแก้ไขข้อความพิมพ์ผิด (Typo Fix)
 
 **ปัญหาที่พบ**
-- ใน `api_gateway/README.md` มีประโยคภาษาอังกฤษผิดหลักไวยากรณ์/พิมพ์ตกคำ:
+- ใน `api_gateway/README.md` มีประโยคภาษาอังกฤษพิมพ์ตกคำ:
   - `For an environment that closer resembles production, ...`
-- คำว่า `that closer` ควรเป็น `that is closer` ทำให้ข้อความอ่านสะดุดและดูไม่เป็นทางการ
-
-**หลักฐานอ้างอิง**
-- `api_gateway/README.md` หัวข้อ `Run (Production-like)`
+- วลี `that closer` ควรเป็น `that is closer`
 
 **งานที่เสนอ**
-- แก้ประโยคเป็น:
+- แก้เป็น:
   - `For an environment that is closer to production, use the provided shell script.`
-- ตรวจทานทั้งหัวข้อภาษาอังกฤษ/ไทยในไฟล์เดียวกันอีกหนึ่งรอบ เพื่อแก้คำตกหล่นลักษณะเดียวกัน
+- ตรวจทานทั้งไฟล์ README ภาษาอังกฤษ/ไทยแบบรอบเดียวเพื่อเก็บ typo ใกล้เคียงกัน
 
 ---
 
 ## 2) งานแก้ไขบั๊ก (Bug Fix)
 
 **ปัญหาที่พบ**
-- ตัวแอปใน `api_gateway/main.py` ใช้ตัวแปร `GEMINI_API_KEY` สำหรับ provider Google
-- แต่สคริปต์สตาร์ต `api_gateway/start_cognitive_api.sh` ตรวจ `GOOGLE_API_KEY` แทน
-- ส่งผลให้สคริปต์ผ่านการตรวจ env ได้ แต่ runtime ยัง error ว่า `GEMINI_API_KEY is not set` เมื่อเรียกโมเดล Google
-
-**หลักฐานอ้างอิง**
-- `api_gateway/main.py` ฟังก์ชัน `invoke_generative_model(...)`
-- `api_gateway/start_cognitive_api.sh` เงื่อนไขตรวจ API key
+- Runtime ใน `api_gateway/main.py` อ่าน Google key จาก `GEMINI_API_KEY`
+- แต่สคริปต์รัน `api_gateway/start_cognitive_api.sh` ตรวจ `GOOGLE_API_KEY`
+- ผลคือสคริปต์อาจผ่านเงื่อนไขได้ แต่ API เรียกใช้งานจริงล้มเหลวด้วย error `GEMINI_API_KEY is not set`
 
 **งานที่เสนอ**
-- ปรับให้ชื่อ env สอดคล้องกันทั้งระบบ (แนะนำใช้ `GEMINI_API_KEY` ตรงตามโค้ด runtime)
-- หรือรองรับ alias ชั่วคราว (`GOOGLE_API_KEY` -> fallback) พร้อม deprecation note
-- เพิ่ม unit test สำหรับกรณี Google provider ไม่มี key เพื่อกัน regression
+- ทำให้ชื่อ env สอดคล้องกันทั้งระบบ โดยเลือกใช้ `GEMINI_API_KEY` เป็นค่าหลัก
+- เพิ่ม fallback ชั่วคราว (`GOOGLE_API_KEY` -> `GEMINI_API_KEY`) พร้อมข้อความ deprecation
 
 ---
 
-## 3) งานแก้ความคลาดเคลื่อนของเอกสาร (Documentation Discrepancy)
+## 3) งานแก้ไขคอมเมนต์/ความคลาดเคลื่อนของเอกสาร (Comment/Docs Discrepancy)
 
 **ปัญหาที่พบ**
-- `api_gateway/README.md` ระบุว่า endpoint `POST /api/v1/cognitive/emit` ต้องมี header `X-Model-Provider` และ `X-Model-Version`
-- แต่ใน implementation (`api_gateway/main.py`) ไม่มีการอ่านหรือบังคับ header ทั้งสองตัว
-- ทำให้สัญญาเอกสารกับพฤติกรรมจริงไม่ตรงกัน
-
-**หลักฐานอ้างอิง**
-- `api_gateway/README.md` หัวข้อ `Required Headers`
-- `api_gateway/main.py` endpoint `emit_cognitive_dsl(...)`
+- ใน `api_gateway/test_api.py` มีคอมเมนต์ว่า TestClient ตั้ง header ให้ websocket ไม่ได้:
+  - `TestClient doesn't directly support setting headers for websockets.`
+- แต่ FastAPI/Starlette `websocket_connect` รองรับการส่ง header ได้ และเทสต์ `test_websocket_stream_with_header_key` ถูกปล่อยเป็น `pass`
 
 **งานที่เสนอ**
-- เลือกแนวทางให้ชัดเจน 1 ทาง:
-  1) ถ้าต้องการบังคับจริง: เพิ่มการ validate header ใน endpoint
-  2) ถ้าไม่ต้องการ: ลบออกจาก README
-- อัปเดตตัวอย่าง `curl` ให้สะท้อน header ที่จำเป็นจริง
+- อัปเดตคอมเมนต์ให้ตรงพฤติกรรม framework ปัจจุบัน
+- แทนที่ `pass` ด้วยเทสต์จริงที่ส่ง `X-API-Key` ผ่าน header และ assert ว่า websocket รับข้อความได้
 
 ---
 
 ## 4) งานปรับปรุงการทดสอบ (Test Improvement)
 
 **ปัญหาที่พบ**
-- การรัน `pytest -q` จาก root ล้มเหลวตั้งแต่ช่วงเก็บเทสต์ เนื่องจาก import path ของ `api_gateway` ไม่ถูกตั้งค่าเป็น package
-- ทำให้เทสต์ไม่ได้รัน logic จริง (หยุดที่ collection error)
-
-**หลักฐานอ้างอิง**
-- ผลลัพธ์จากคำสั่ง `pytest -q`
-  - `ModuleNotFoundError: No module named 'api_gateway'`
-  - `ImportError: attempted relative import with no known parent package`
+- ปัจจุบันมีเทสต์กรณี unsupported model (`unknown-model`) แต่ยังไม่มีเทสต์กรณี provider ถูกต้องแต่ key ขาด
+- เส้นทางนี้สำคัญเพราะผูกกับ config production โดยตรง
 
 **งานที่เสนอ**
-- ทำให้โครงสร้างเทสต์รันได้จาก root โดยตรง เช่น:
-  - เพิ่ม `api_gateway/__init__.py`
-  - หรือเพิ่ม `pytest.ini`/`pyproject.toml` ให้กำหนด `pythonpath`
-- หลังแก้ collection แล้ว เพิ่ม smoke test CI step (`pytest -q`) เพื่อป้องกัน regression ด้าน test discovery
+- เพิ่มเทสต์สำหรับ `POST /api/v1/cognitive/generate` เมื่อใช้โมเดล Google (`gemini-pro`) แล้วไม่มี `GEMINI_API_KEY`
+- Assert สถานะ `500` และข้อความ `GEMINI_API_KEY is not set`
+- เสริมอีกเคสหนึ่งสำหรับ OpenAI ที่ไม่มี `OPENAI_API_KEY` เพื่อให้ครอบคลุมทั้งสอง provider หลัก
