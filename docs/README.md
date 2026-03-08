@@ -22,6 +22,7 @@
 - `06_POLICIES.md` — product/system policies (manifestation/predictive)
 - `07_SAFETY_AND_GOVERNANCE.md` — governance, safety, privacy, security
 - `08_TEST_PLAN.md` — test philosophy และ criteria
+- `09_MAERI_LIFESTATE_GENUI_TH.md` — สถาปัตยกรรม MAE-RI, Emotional LifeState, Adaptive GenUI
 - `schemas/` — versioned ABI JSON
 - `appendices/` — glossary, state machine, roadmap
 
