@@ -70,3 +70,13 @@ def test_proxy_fetch_supports_cors_preflight(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "*"
+
+
+def test_generate_rejects_unsupported_model_with_400(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/cognitive/generate",
+        headers={"X-API-Key": "test-key"},
+        json={"prompt": "hello", "model": "unknown-model", "temperature": 0.2},
+    )
+    assert response.status_code == 400
+    assert "Unsupported model" in response.text

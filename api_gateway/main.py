@@ -303,6 +303,8 @@ async def generate_text(
             trace_id=str(uuid.uuid4()),
             provider=MODEL_PROVIDER_MAP.get(request.model, "unknown")
         )
+    except HTTPException:
+        raise
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"Model provider error: {e.response.text}")
     except Exception as e:
@@ -456,4 +458,5 @@ async def state_sync(websocket: WebSocket, room_id: str, user_id: str | None = Q
                 await asyncio.gather(*[client.send_json(message) for client in room.clients])
     except WebSocketDisconnect:
         async with room.lock:
-            room.clients.remove(websocket)
+            if websocket in room.clients:
+                room.clients.remove(websocket)
