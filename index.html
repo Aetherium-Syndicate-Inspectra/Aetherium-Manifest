@@ -717,6 +717,10 @@
       energy: 100,
       entropy: 8,
       load: 5,
+      empathy: 0.5,
+      curiosity: 0.4,
+      trust: 0.2,
+      mode: 'NEBULA',
       shape: 'cloud',
       intentCategory: 'chat',
       turbulence: 0.18,
@@ -1136,8 +1140,8 @@
       }
 
       update(t) {
-        const speed = 0.15 + fsm.energyLevel * 1.8;
-        const turbulence = fsm.turbulence * 1.2;
+        const speed = neuralShaderInstance.current.velocity;
+        const turbulence = neuralShaderInstance.current.chaos_factor * 1.2;
 
         if (fsm.shape === 'vortex') {
           const cx = width / 2;
@@ -1209,7 +1213,7 @@
       draw() {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = palette[fsm.state] || palette.IDLE;
+        ctx.fillStyle = neuralShaderInstance.current.color_palette || palette[fsm.state] || palette.IDLE;
         ctx.globalAlpha = fsm.state === 'NIRODHA' ? 0.28 : 0.45 + Math.sin(Date.now() * 0.006) * 0.15;
         ctx.fill();
       }
@@ -1219,6 +1223,157 @@
       return Math.max(min, Math.min(max, value));
     }
 
+    function normalizeIntentVector(intent = {}) {
+      const fallbackVisual = intent.visual_parameters || {};
+      return {
+        intent_category: intent.intent_category || 'chat',
+        emotional_valence: Number(clamp(intent.emotional_valence ?? 0, -1, 1).toFixed(2)),
+        energy_level: Number(clamp(intent.energy_level ?? 0.2, 0, 1).toFixed(2)),
+        semantic_concepts: Array.isArray(intent.semantic_concepts) ? intent.semantic_concepts : [],
+        visual_parameters: {
+          base_shape: fallbackVisual.base_shape,
+          color_palette: fallbackVisual.color_palette,
+          particle_density: typeof fallbackVisual.particle_density === 'number' ? clamp(fallbackVisual.particle_density, 0, 1) : undefined,
+          turbulence: typeof fallbackVisual.turbulence === 'number' ? clamp(fallbackVisual.turbulence, 0, 1) : undefined,
+          flow_direction: fallbackVisual.flow_direction
+        },
+        state_flags: {
+          connection_active: Boolean(intent?.state_flags?.connection_active),
+          error_state: Boolean(intent?.state_flags?.error_state)
+        }
+      };
+    }
+
+    function mapIntentToVisual(intent, lifeState = fsm) {
+      const vector = normalizeIntentVector(intent);
+      const concepts = vector.semantic_concepts.map(item => String(item).toLowerCase());
+      const hasLogicSemantic = concepts.includes('logic') || concepts.includes('deep');
+      const listeningSemantic = concepts.includes('listening');
+      const paradoxSemantic = concepts.includes('paradox');
+
+      let baseShape = 'nebula_cloud';
+      let flowDirection = 'orbital';
+
+      if (vector.intent_category === 'deep_reasoning' || hasLogicSemantic) {
+        baseShape = 'spiral_vortex';
+        flowDirection = 'inward';
+      } else if (vector.intent_category === 'equilibrium' || listeningSemantic) {
+        baseShape = 'sphere';
+        flowDirection = 'orbital';
+      } else if (vector.intent_category === 'error' || paradoxSemantic || vector.state_flags.error_state) {
+        baseShape = 'cracked_shell';
+        flowDirection = 'outward';
+      }
+
+      let colorPalette = '#FFFFFF';
+      if (vector.energy_level > 0.8) colorPalette = '#FFD700';
+      else if (lifeState.mode === 'REASONING' || vector.emotional_valence > 0.45) colorPalette = '#800080';
+      else if (vector.state_flags.connection_active) colorPalette = '#00FFFF';
+
+      return {
+        intent_category: vector.intent_category,
+        emotional_valence: vector.emotional_valence,
+        energy_level: vector.energy_level,
+        semantic_concepts: vector.semantic_concepts,
+        visual_parameters: {
+          base_shape: vector.visual_parameters.base_shape || baseShape,
+          color_palette: vector.visual_parameters.color_palette || colorPalette,
+          particle_density: Number((vector.visual_parameters.particle_density ?? clamp(0.22 + vector.energy_level * 0.72, 0.2, 0.98)).toFixed(2)),
+          turbulence: Number((vector.visual_parameters.turbulence ?? clamp(0.1 + vector.energy_level * 0.82, 0.08, 0.98)).toFixed(2)),
+          flow_direction: vector.visual_parameters.flow_direction || flowDirection
+        },
+        state_flags: vector.state_flags
+      };
+    }
+
+    const neuralShaderInstance = {
+      current: {
+        base_shape: 'nebula_cloud',
+        color_palette: '#00ffff',
+        particle_density: 0.45,
+        turbulence: 0.18,
+        flow_direction: 'orbital',
+        velocity: 0.22,
+        chaos_factor: 0.18
+      },
+      target: null,
+      progress: 1,
+      updateParameters(params) {
+        this.target = {
+          ...this.current,
+          ...params,
+          velocity: clamp(0.15 + (params.energy_level || 0.2) * 1.8, 0.12, 2),
+          chaos_factor: clamp(params.turbulence ?? this.current.chaos_factor, 0.08, 0.98)
+        };
+        this.progress = 0;
+      },
+      runLifecycle() {
+        if (!this.target) return;
+        this.progress = clamp(this.progress + 0.05, 0, 1);
+        const lerp = (a, b) => a + (b - a) * this.progress;
+        this.current.particle_density = lerp(this.current.particle_density, this.target.particle_density);
+        this.current.turbulence = lerp(this.current.turbulence, this.target.turbulence);
+        this.current.velocity = lerp(this.current.velocity, this.target.velocity);
+        this.current.chaos_factor = lerp(this.current.chaos_factor, this.target.chaos_factor);
+        this.current.base_shape = this.target.base_shape;
+        this.current.flow_direction = this.target.flow_direction;
+        this.current.color_palette = this.target.color_palette;
+      }
+    };
+
+    const ritualStateMachine = {
+      state: 'IDLE',
+      transition(next) {
+        this.state = next;
+        fsm.state = next;
+      }
+    };
+
+    function updateLifeStateFromIntent(vector) {
+      fsm.energy = clamp(fsm.energy - (vector.energy_level * 9 + 0.25), 0, 100);
+      fsm.entropy = clamp(fsm.entropy + vector.energy_level * 18 + 0.4, 0, 100);
+      fsm.curiosity = clamp(fsm.curiosity + 0.03, 0, 1);
+      fsm.empathy = clamp(0.5 + vector.emotional_valence * 0.5, 0, 1);
+      if (vector.intent_category === 'deep_reasoning') {
+        fsm.mode = 'REASONING';
+      } else if (vector.intent_category === 'error') {
+        fsm.mode = 'DECAY';
+        fsm.trust = clamp(fsm.trust + 0.08, 0, 1);
+      } else {
+        fsm.mode = 'PERCEPTION';
+      }
+      if (fsm.energy <= 1) fsm.mode = 'NIRODHA';
+    }
+
+    function applyIntentVector(intentVector, source = 'aetherbus') {
+      ritualStateMachine.transition('MORPHING');
+      const mapped = mapIntentToVisual(intentVector, fsm);
+      updateLifeStateFromIntent(mapped);
+
+      const shapeAlias = {
+        spiral_vortex: 'vortex',
+        cracked_shell: 'cracks',
+        nebula_cloud: 'cloud'
+      };
+      fsm.intentCategory = mapped.intent_category;
+      fsm.energyLevel = mapped.energy_level;
+      fsm.emotionalValence = mapped.emotional_valence;
+      fsm.particleDensity = mapped.visual_parameters.particle_density;
+      fsm.turbulence = mapped.visual_parameters.turbulence;
+      fsm.shape = shapeAlias[mapped.visual_parameters.base_shape] || mapped.visual_parameters.base_shape;
+      fsm.load = clamp(fsm.load + mapped.energy_level * 30, 0, 100);
+
+      neuralShaderInstance.updateParameters({
+        ...mapped.visual_parameters,
+        energy_level: mapped.energy_level
+      });
+      const targetCount = Math.floor(220 + fsm.particleDensity * 980);
+      particles = Array.from({ length: targetCount }, () => new Particle());
+      refs.json.textContent = JSON.stringify(mapped, null, 2);
+      addBubble('system', `[${source}] intent_vector:${mapped.intent_category} -> ${mapped.visual_parameters.base_shape}`);
+      ritualStateMachine.transition('PROCESSING');
+    }
+
     function runSystemConsistencyCheck() {
       fsm.energy = clamp(fsm.energy, 0, 100);
       fsm.load = clamp(fsm.load, 0, 100);
@@ -1226,6 +1381,9 @@
       fsm.energyLevel = clamp(fsm.energyLevel, 0, 1);
       fsm.turbulence = clamp(fsm.turbulence, 0.08, 0.95);
       fsm.particleDensity = clamp(fsm.particleDensity, 0.2, 0.95);
+      fsm.empathy = clamp(fsm.empathy, 0, 1);
+      fsm.curiosity = clamp(fsm.curiosity, 0, 1);
+      fsm.trust = clamp(fsm.trust, 0, 1);
 
       if (fsm.state === 'CRITICAL' && fsm.energy > 32 && fsm.load < 52) {
         fsm.state = 'RESONATING';
@@ -1301,15 +1459,19 @@
 
     function evolveState() {
       if (drawSettings.frozen) {
-        fsm.state = 'NIRODHA';
+        ritualStateMachine.transition('NIRODHA');
+        fsm.mode = 'NIRODHA';
         return;
       }
 
-      if (fsm.state === 'NIRODHA') {
+      if (fsm.mode === 'NIRODHA' || ritualStateMachine.state === 'NIRODHA') {
         fsm.energy = clamp(fsm.energy + 0.28, 0, 100);
         fsm.load = clamp(fsm.load - 0.18, 0, 100);
         fsm.entropy = clamp(fsm.entropy - 0.2, 0, 100);
-        if (fsm.energy > 96) fsm.state = 'IDLE';
+        if (fsm.energy > 45) {
+          fsm.mode = 'NEBULA';
+          ritualStateMachine.transition('IDLE');
+        }
         return;
       }
 
@@ -1317,19 +1479,27 @@
       fsm.entropy = clamp(fsm.entropy * 0.996, 0, 100);
       fsm.load = clamp(fsm.load * 0.994, 0, 100);
 
+      if (fsm.energy <= 8) {
+        fsm.mode = 'NIRODHA';
+        ritualStateMachine.transition('NIRODHA');
+      } else if (ritualStateMachine.state === 'PROCESSING' || ritualStateMachine.state === 'MORPHING') {
+        fsm.mode = 'REASONING';
+      } else if (ritualStateMachine.state === 'LISTENING') {
+        fsm.mode = 'PERCEPTION';
+      } else {
+        fsm.mode = 'NEBULA';
+      }
+
       if (fsm.energy < 10 || fsm.load > 92) {
         fsm.state = 'CRITICAL';
-      } else if (fsm.energy < 18) {
-        fsm.state = 'DECAY';
-      } else if (fsm.load > 65) {
-        fsm.state = 'RESONATING';
-      } else if (fsm.entropy > 45) {
+      } else if (fsm.mode === 'REASONING') {
         fsm.state = 'PROCESSING';
+      } else if (fsm.mode === 'PERCEPTION') {
+        fsm.state = 'LISTENING';
       } else {
         fsm.state = 'IDLE';
       }
 
-      if (fsm.energy <= 1) fsm.state = 'NIRODHA';
       consolidateShadowMemory();
       runSystemConsistencyCheck();
     }
@@ -1568,31 +1738,6 @@
       };
     }
 
-    function mapIntentToVisual(intent) {
-      const concepts = intent.semantic_concepts || [];
-      let baseShape = 'sphere';
-      if (intent.intent_category === 'error_recovery') baseShape = 'cracks';
-      else if (concepts.includes('mountain')) baseShape = 'mountain';
-      else if (concepts.includes('flow')) baseShape = 'river';
-      else if (concepts.includes('human')) baseShape = 'human';
-
-      const warm = intent.emotional_valence >= 0 ? '#FFD166' : '#7FDBFF';
-
-      return {
-        intent_category: intent.intent_category,
-        emotional_valence: intent.emotional_valence,
-        energy_level: intent.energy_level,
-        semantic_concepts: concepts,
-        visual_parameters: {
-          base_shape: baseShape,
-          color_palette: warm,
-          particle_density: Number(clamp(0.32 + intent.energy_level * 0.6, 0.2, 0.95).toFixed(2)),
-          turbulence: Number(clamp(0.12 + intent.energy_level * 0.7, 0.08, 0.95).toFixed(2)),
-          flow_direction: intent.emotional_valence >= 0 ? 'upward' : 'inward'
-        }
-      };
-    }
-
     function initializeVoiceSystem(onSpeechEnd) {
       return {
         start() {
@@ -1656,74 +1801,40 @@
       const t = text.toLowerCase();
       let intentCategory = 'chat';
       if (/^(run|execute|deploy|start|stop)/.test(t)) intentCategory = 'command';
-      if (/(summary|explain|what|find|search|data|request|help)/.test(t)) intentCategory = 'request';
-      if (/(error|fail|broken)/.test(t)) intentCategory = 'error';
+      if (/(summary|explain|what|find|search|data|request|help)/.test(t)) intentCategory = 'analysis_request';
+      if (/(error|fail|broken|paradox)/.test(t)) intentCategory = 'error';
+      if (/(logic|deep|reason)/.test(t)) intentCategory = 'deep_reasoning';
+      if (/(listen|calm|equilibrium)/.test(t)) intentCategory = 'equilibrium';
+      if (/(nebula|dream|void)/.test(t)) intentCategory = 'nebula';
 
       let emotionalValence = 0;
-      if (/(great|awesome|thanks)/.test(t)) emotionalValence = 0.65;
+      if (/(great|awesome|thanks|wise)/.test(t)) emotionalValence = 0.65;
       if (/(angry|sad|confused|tired)/.test(t)) emotionalValence = -0.65;
 
       const urgent = /(urgent|now|asap|immediately|fast)/.test(t);
       const energyLevel = clamp((text.length / 120) + (urgent ? 0.36 : 0.08), 0, 1);
 
       const concepts = [];
-      if (/(fire|heat|hot|critical)/.test(t)) concepts.push('fire');
+      if (/(logic|deep)/.test(t)) concepts.push('logic', 'deep');
+      if (/(listen|hearing)/.test(t)) concepts.push('listening');
+      if (/(paradox|conflict)/.test(t)) concepts.push('paradox');
       if (/(flow|water|stream)/.test(t)) concepts.push('flow');
-      if (/(structure|table|schema|json|order)/.test(t)) concepts.push('structure');
-      if (/(mountain|hill)/.test(t)) concepts.push('mountain');
-      if (/(river|waterfall)/.test(t)) concepts.push('river');
-      if (/(human|body)/.test(t)) concepts.push('human');
-      if (/(face|portrait)/.test(t)) concepts.push('face');
-      if (concepts.length === 0) concepts.push('balance');
-
-      let baseShape = 'sphere';
-      if (intentCategory === 'error') baseShape = 'cracks';
-      else if (concepts.includes('mountain')) baseShape = 'mountain';
-      else if (concepts.includes('river')) baseShape = 'river';
-      else if (concepts.includes('face')) baseShape = 'face';
-      else if (concepts.includes('human')) baseShape = 'human';
-      else if (concepts.includes('flow')) baseShape = 'vortex';
-      else if (concepts.includes('structure')) baseShape = 'cube';
-      else if (energyLevel < 0.25) baseShape = 'cloud';
+      if (concepts.length === 0) concepts.push('ambient');
 
       return {
         intent_category: intentCategory,
         emotional_valence: Number(emotionalValence.toFixed(2)),
         energy_level: Number(energyLevel.toFixed(2)),
         semantic_concepts: concepts,
-        visual_parameters: {
-          base_shape: baseShape,
-          turbulence: Number(clamp(0.1 + energyLevel * 0.8, 0, 1).toFixed(2)),
-          particle_density: Number(clamp(0.35 + energyLevel * 0.55, 0, 1).toFixed(2))
+        state_flags: {
+          connection_active: Boolean(stateSyncSocket && stateSyncSocket.readyState === WebSocket.OPEN),
+          error_state: intentCategory === 'error'
         }
       };
     }
 
     function applyIntent(vector) {
-      applyDeltaState(fsm, {
-        intentCategory: vector.intent_category,
-        energyLevel: vector.energy_level,
-        turbulence: vector.visual_parameters.turbulence,
-        particleDensity: vector.visual_parameters.particle_density,
-        emotionalValence: vector.emotional_valence,
-        desiredForm: vector.visual_parameters.base_shape,
-        load: clamp(fsm.load + vector.energy_level * 38, 0, 100),
-        entropy: clamp(fsm.entropy + vector.energy_level * 26, 0, 100),
-        energy: clamp(fsm.energy - vector.energy_level * 9, 0, 100),
-        state: 'PROCESSING'
-      });
-
-      if (vector.visual_parameters.base_shape === 'cracks') {
-        fsm.shape = 'cloud';
-        fsm.state = 'CRITICAL';
-      } else {
-        fsm.shape = vector.visual_parameters.base_shape;
-      }
-
-      const targetCount = Math.floor(220 + fsm.particleDensity * 980);
-      particles = Array.from({ length: targetCount }, () => new Particle());
-
-      refs.json.textContent = JSON.stringify(vector, null, 2);
+      applyIntentVector(vector, 'local');
     }
 
     function addBubble(role, message) {
@@ -1751,7 +1862,8 @@
 
     async function processUserInput(text) {
       addBubble('user', text);
-      fsm.state = 'LISTENING';
+      ritualStateMachine.transition('LISTENING');
+      fsm.mode = 'PERCEPTION';
       await processTranscript(text, 'text');
     }
 
@@ -1772,7 +1884,7 @@
       refs.shapeChip.textContent = `shape: ${fsm.shape}`;
       refs.intentChip.textContent = `intent: ${fsm.intentCategory}`;
       refs.qualityChip.textContent = `quality: ${fsm.qualityTier} @${fsm.targetFps}fps`;
-      refs.gateChip.textContent = refs.gateChip.textContent || 'gate: accept';
+      refs.gateChip.textContent = `mode: ${fsm.mode} | trust:${fsm.trust.toFixed(2)}`;
 
       refs.displayPage2State.textContent = fsm.state;
       refs.displayPage2Energy.textContent = `${Math.round(fsm.energy)}%`;
@@ -1840,6 +1952,7 @@
 
       drawBackground();
       evolveState();
+      neuralShaderInstance.runLifecycle();
 
       if (!compatMode) {
         for (const p of particles) {
@@ -1863,6 +1976,7 @@
       mouse.y = e.clientY;
       fsm.energy = clamp(fsm.energy - 0.02, 0, 100);
       fsm.entropy = clamp(fsm.entropy + 0.03, 0, 100);
+      fsm.curiosity = clamp(fsm.curiosity + 0.004, 0, 1);
     });
 
     document.getElementById('send-btn').addEventListener('click', async () => {
@@ -1907,6 +2021,12 @@
           const payload = JSON.parse(event.data);
           if (payload.type === 'state_updated' || payload.type === 'state_snapshot') {
             applyDeltaState(fsm, payload.shared_state || {});
+          }
+          if (payload.type === 'intent_vector' && payload.intent_vector) {
+            applyIntentVector(payload.intent_vector, 'aetherbus');
+          }
+          if (payload.intent_category && payload.energy_level !== undefined) {
+            applyIntentVector(payload, 'aetherbus');
           }
         });
       } catch (error) {
@@ -1982,7 +2102,8 @@
     document.getElementById('toggle-box-3').addEventListener('click', () => toggleMiniBox(3));
 
     const voiceSystem = initializeVoiceSystem(async (audioBlob) => {
-      fsm.state = 'PROCESSING';
+      ritualStateMachine.transition('PROCESSING');
+      fsm.mode = 'REASONING';
       const transcript = await transcribeAudio(audioBlob);
       addBubble('user', transcript);
       await processTranscript(transcript, 'voice');
@@ -2021,6 +2142,8 @@
 
     document.getElementById('nirodha-btn').addEventListener('click', () => {
       setFreezeMode(true);
+      ritualStateMachine.transition('NIRODHA');
+      fsm.mode = 'NIRODHA';
       fsm.shape = 'cloud';
       fsm.intentCategory = 'maintenance';
       fsm.energyLevel = 0.05;
