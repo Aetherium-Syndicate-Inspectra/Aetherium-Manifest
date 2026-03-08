@@ -83,16 +83,15 @@ cd api_gateway && pytest -q
 python3 tools/contracts/contract_checker.py
 ```
 
-### Recommended Next Steps
-- ✅ Proxy fetch upgraded to async `httpx` with SSRF guardrails (host allowlist + private/link-local/loopback/rfc-reserved IP blocking).
-- ✅ Mutable runtime states are protected with `asyncio.Lock` (metrics, telemetry store, and state-sync rooms) to ensure concurrency safety.
-- ✅ Contract checker now uses `jsonschema` and keeps payload fixtures immutable during validation (audit-only fallback hints).
-- ✅ Browser URL analysis now routes through server-side proxy endpoint `/api/v1/proxy/fetch` to reduce CORS issues.
-- ✅ Telemetry pipeline now ingests to in-memory time-series storage via `/api/v1/telemetry/ingest` and aggregates via `/api/v1/telemetry/query`.
-- ✅ i18n now uses dynamic locale bundles in `locales/*.json`.
-- ✅ Voice model resolution now supports language-region mapping via `/api/v1/voice/model`, with region selector in Settings.
-- ✅ Deterministic multi-user state synchronization is available via `/ws/state-sync/{room_id}`.
-- ✅ Runtime quality tests were updated to match immutable contract-check behavior and async telemetry endpoints.
+### Future Function & Development Proposals
+- Add **scenario presets** (Presentation / Meditation / Debug / Low-power) that switch multiple visual and voice settings in one click.
+- Add **plugin-style intent renderer API** so teams can register custom visual modules without modifying core runtime.
+- Add **session replay mode** (timeline scrub + event bookmarks) for debugging intent, telemetry spikes, and UX quality.
+- Add **policy-driven link analysis** with per-workspace rules, risk scoring, and exportable audit log.
+- Add **hybrid persistence layer**: Redis for real-time state + TimescaleDB/ClickHouse for long-term telemetry analytics.
+- Add **collaboration controls** (roles, room permissions, moderation actions) on top of state-sync channels.
+- Add **voice quality dashboard** showing WER/latency by language-region and automatic fallback recommendations.
+- Add **offline-first runtime packs** (locale + voice + visual profile bundles) for unstable network environments.
 
 ---
 
@@ -143,16 +142,15 @@ Gateway: `http://localhost:8000` (เอกสาร API ที่ `/docs`)
 - `tools/benchmarks/`: สคริปต์ benchmark สำหรับ latency และ stress test
 - `docs/`: เอกสารสถาปัตยกรรม อินเทอร์เฟซ ความปลอดภัย และ roadmap
 
-### แนวทางต่อยอด
-- ✅ อัปเกรด proxy เป็น async (`httpx`) พร้อม SSRF protection (allowlist + block private/link-local/loopback IP)
-- ✅ เพิ่ม asyncio locks ครอบ state ที่แก้ไขได้ เพื่อความปลอดภัยในการทำงานพร้อมกัน
-- ✅ เปลี่ยน contract checker ไปใช้ `jsonschema` และตัด side effects ที่ไปแก้ payload ระหว่างการตรวจสอบ
-- ✅ ทำ URL proxy ฝั่งเซิร์ฟเวอร์ผ่าน `/api/v1/proxy/fetch` เพื่อลดปัญหา CORS
-- ✅ เก็บ telemetry ลง time-series store ผ่าน `/api/v1/telemetry/ingest` และสรุปผลผ่าน `/api/v1/telemetry/query`
-- ✅ ทำ i18n แบบแยกไฟล์ภาษาใน `locales/*.json` และโหลดแบบ dynamic
-- ✅ เลือกโมเดลเสียงตามภาษา/ภูมิภาคผ่าน `/api/v1/voice/model` และตัวเลือกภูมิภาคในหน้า Settings
-- ✅ เพิ่ม state sync แบบ deterministic สำหรับหลายผู้ใช้ด้วย `/ws/state-sync/{room_id}`
-- ✅ ปรับปรุงชุดทดสอบ runtime quality ให้สอดคล้องกับพฤติกรรมใหม่ (contract checker แบบไม่แก้ payload และ telemetry endpoint แบบ async)
+### ข้อเสนอฟังก์ชันและแนวทางต่อยอด
+- เพิ่ม **Preset การใช้งาน** (Presentation / Meditation / Debug / Low-power) เพื่อสลับค่าการแสดงผลและเสียงหลายรายการในครั้งเดียว
+- เพิ่ม **Plugin Renderer API** สำหรับต่อโมดูลภาพแสดงผลใหม่โดยไม่ต้องแก้แกนหลักของระบบ
+- เพิ่ม **Session Replay** (timeline + bookmark เหตุการณ์สำคัญ) เพื่อใช้ตรวจสอบบั๊กและวิเคราะห์พฤติกรรม intent ย้อนหลัง
+- เพิ่ม **ระบบวิเคราะห์ลิงก์แบบกำหนดนโยบาย** ราย workspace พร้อมคะแนนความเสี่ยงและบันทึก audit export ได้
+- เพิ่ม **Hybrid Data Layer** โดยใช้ Redis สำหรับสถานะเรียลไทม์ และ TimescaleDB/ClickHouse สำหรับ telemetry ระยะยาว
+- เพิ่ม **ฟีเจอร์ collaboration** เช่น role/permission/moderation บนช่อง state-sync
+- เพิ่ม **Voice Quality Dashboard** แสดง WER/latency แยกตามภาษา-ภูมิภาค พร้อมคำแนะนำ fallback อัตโนมัติ
+- เพิ่ม **Offline-first Runtime Pack** (ชุด locale + voice + visual profile) สำหรับสภาพแวดล้อมเครือข่ายไม่เสถียร
 
 
 ## Extension Ideas
