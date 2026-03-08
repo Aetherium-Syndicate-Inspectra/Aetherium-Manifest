@@ -4,6 +4,7 @@
 - [Vision](#vision)
 - [System Architecture](#system-architecture)
 - [System Layers](#system-layers)
+- [Aetherium Research Architecture Diagrams](#aetherium-research-architecture-diagrams)
 - [Core Capabilities](#core-capabilities)
 - [Developer Quick Start](#developer-quick-start)
 - [API Reference (Prototype)](#api-reference-prototype)
@@ -92,6 +93,194 @@ Communication between components occurs through an event-driven transport layer 
 - async event queues
 
 ---
+
+## Aetherium Research Architecture Diagrams
+
+Below are six research-lab-level reference diagrams for architecture planning, whitepapers, and technical reviews.
+
+### 1) Full Aetherium Ecosystem Architecture (Genesis + Manifest + Bus + Agents)
+
+```text
+                 ┌──────────────────────────┐
+                 │        Human Users       │
+                 │   Voice / UI / Sensors   │
+                 └─────────────┬────────────┘
+                               │
+                               ▼
+                ┌───────────────────────────────┐
+                │        AETHERIUM MANIFEST     │
+                │  Visual Cognition Interface   │
+                │                               │
+                │  Visualization Engine         │
+                │  Voice Interaction            │
+                │  HUD Panels                   │
+                │  Telemetry Display            │
+                └───────────────┬───────────────┘
+                                │
+                                ▼
+                     ┌──────────────────────┐
+                     │      AetherBus       │
+                     │  Event / Signal Mesh │
+                     └───────────┬──────────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        ▼                        ▼                        ▼
+┌────────────────┐     ┌──────────────────┐     ┌────────────────┐
+│ Aetherium      │     │   Agent Systems  │     │ External AI    │
+│ GENESIS        │     │                  │     │ Models / APIs  │
+│ Cognitive Core │     │ Tools / Workers  │     │ LLM Providers  │
+└───────┬────────┘     └────────┬─────────┘     └────────┬───────┘
+        │                       │                        │
+        ▼                       ▼                        ▼
+  Reasoning Engine       Task Agents               Knowledge
+  Intent Generation      Automation                Retrieval
+  Cognitive State        Data Collection           External Tools
+```
+
+### 2) AI Cognition Visualization Pipeline (LLM Reasoning → Visual Form)
+
+```text
+External Data / Prompts
+│
+▼
+Large Language Model
+Reasoning Layer
+│
+▼
+Cognitive State Model
+│
+▼
+Intention Vector
+│
+▼
+Signal Translation
+│
+▼
+Visualization Mapping
+
+┌───────────────┬───────────────┬───────────────┐
+▼               ▼               ▼
+Particles     Light Fields   Abstract Geometry
+│               │               │
+└───────────────┴───────────────┘
+▼
+Real-Time Rendering
+▼
+Human Perception
+```
+
+### 3) Aetherium Intelligence Stack (AI Platform Stack View)
+
+```text
+┌───────────────────────────────────────────┐
+│           Human Interaction Layer         │
+│   Voice / UI / Visualization / Control    │
+└─────────────────────────┬─────────────────┘
+                          ▼
+┌───────────────────────────────────────────┐
+│        Manifest Perception Interface      │
+│   Cognitive Visualization + HUD System    │
+└─────────────────────────┬─────────────────┘
+                          ▼
+┌───────────────────────────────────────────┐
+│        Cognitive Event Transport          │
+│            AetherBus Messaging            │
+└─────────────────────────┬─────────────────┘
+                          ▼
+┌───────────────────────────────────────────┐
+│        Aetherium Genesis Intelligence     │
+│      Reasoning / Intention Generation     │
+└─────────────────────────┬─────────────────┘
+                          ▼
+┌───────────────────────────────────────────┐
+│           Model Orchestration Layer       │
+│      LLMs / Agents / Tools / Retrieval    │
+└─────────────────────────┬─────────────────┘
+                          ▼
+┌───────────────────────────────────────────┐
+│            Foundation Models              │
+│        Language / Vision / Speech         │
+└───────────────────────────────────────────┘
+```
+
+### 4) Aetherium Cognitive Architecture (AGI Brain Diagram)
+
+```text
+                      ┌──────────────────────────────┐
+                      │  Multimodal Perception Layer │
+                      │  Text / Voice / Sensor Input │
+                      └──────────────┬───────────────┘
+                                     ▼
+                      ┌──────────────────────────────┐
+                      │   World Model & Memory Mesh  │
+                      │ Episodic / Semantic / Context │
+                      └──────────────┬───────────────┘
+                                     ▼
+┌──────────────────────┐   ┌──────────────────────────┐   ┌───────────────────────┐
+│ Goal & Intent Engine │◄──┤  Meta-Cognition Monitor  ├──►│ Safety & Alignment Hub │
+│ Priority Formation   │   │ Confidence / Uncertainty │   │ Policy / Constraints   │
+└──────────┬───────────┘   └────────────┬─────────────┘   └──────────┬────────────┘
+           ▼                            ▼                            ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                 Reasoning Core (Symbolic + Neural Hybrid)                │
+│  Planning / Causal Inference / Tool Reasoning / Reflection Loop          │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     ▼
+                      ┌──────────────────────────────┐
+                      │ Action & Expression Layer    │
+                      │ Agents / APIs / Visualization│
+                      └──────────────────────────────┘
+```
+
+### 5) Aetherium Agent System Architecture
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│                    Agent Orchestrator (Supervisor)                │
+│        Task Routing / Budgeting / Dependency Graph Control        │
+└──────────────────────────────┬─────────────────────────────────────┘
+                               ▼
+        ┌──────────────────────┼─────────────────────────┬──────────────────────┐
+        ▼                      ▼                         ▼                      ▼
+┌───────────────┐      ┌───────────────┐        ┌───────────────┐      ┌───────────────┐
+│ Research Agent│      │ Builder Agent │        │ Runtime Agent │      │ Audit Agent   │
+│ Retrieval     │      │ Code / Config │        │ Deploy / Ops  │      │ Safety / Logs │
+└───────┬───────┘      └───────┬───────┘        └───────┬───────┘      └───────┬───────┘
+        │                      │                        │                      │
+        └──────────────┬───────┴──────────────┬─────────┴──────────────┬───────┘
+                       ▼                      ▼                        ▼
+               ┌────────────────────────────────────────────────────────────┐
+               │ Shared Tooling Plane                                      │
+               │ Vector DB / RAG / Sandboxed Tools / Test Harness / Cache │
+               └────────────────────────────────────────────────────────────┘
+```
+
+### 6) Aetherium Distributed Infrastructure (Cloud / Edge / GPU / Streaming)
+
+```text
+                    ┌──────────────────────────────────────┐
+                    │        Global Control Plane          │
+                    │ Auth / Routing / Policy / Telemetry  │
+                    └───────────────┬──────────────────────┘
+                                    ▼
+      ┌─────────────────────────────┼─────────────────────────────┐
+      ▼                             ▼                             ▼
+┌───────────────┐           ┌───────────────┐             ┌────────────────┐
+│ Edge Runtime  │           │ Cloud Region A│             │ Cloud Region B │
+│ Low Latency   │           │ API + Agents  │             │ API + Agents   │
+└───────┬───────┘           └───────┬───────┘             └───────┬────────┘
+        ▼                           ▼                             ▼
+┌───────────────┐           ┌───────────────┐             ┌────────────────┐
+│ Local Stream  │           │ GPU Inference │             │ GPU Inference  │
+│ WebRTC / WS   │           │ Cluster       │             │ Cluster        │
+└───────┬───────┘           └───────┬───────┘             └───────┬────────┘
+        └──────────────┬────────────┴──────────────┬──────────────┘
+                       ▼                           ▼
+             ┌──────────────────┐        ┌──────────────────────────┐
+             │ Event Streaming  │        │ Data Layer               │
+             │ NATS / Kafka Bus │        │ Object Store + TSDB      │
+             └──────────────────┘        └──────────────────────────┘
+```
 
 ## Core Capabilities
 
