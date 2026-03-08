@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 app = FastAPI(title="AGNS Cognitive DSL Gateway", version="1.1.0")
 
@@ -242,6 +242,12 @@ async def _room(room_id: str) -> StateSyncRoom:
     async with ROOMS_LOCK:
         return STATE_SYNC_ROOMS.setdefault(room_id, StateSyncRoom())
 
+
+def _resolve_voice_model(language: str, region: str) -> str:
+    lang_key = language.split("-")[0].lower()
+    region_key = region.lower()
+    return VOICE_MODEL_MAP.get((lang_key, region_key), f"whisper-general-{lang_key}")
+
 def _is_blocked_proxy_target(hostname: str) -> bool:
     try:
         for _, _, _, _, sockaddr in socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP):
@@ -281,15 +287,23 @@ async def generate_text(
 
 @app.post("/api/v1/cognitive/emit")
 async def emit_cognitive_dsl(
-    request: CognitiveEmitRequest, 
-    x_api_key: str | None = Header(None, alias="X-API-Key")
+    request: dict[str, Any] | None,
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    x_model_provider: str | None = Header(None, alias="X-Model-Provider"),
+    x_model_version: str | None = Header(None, alias="X-Model-Version"),
 ) -> dict[str, Any]:
     _ensure_api_key(x_api_key)
-    provider = request.model_metadata.model_name
+    if not x_model_provider or not x_model_version:
+        raise HTTPException(status_code=400, detail="missing model provider/version")
+
+    try:
+        parsed = CognitiveEmitRequest.model_validate(request or {})
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors())
 
     async with METRICS_LOCK:
         METRICS.total_dsl_submissions += 1
-    passed, violations = FirmaValidator.validate_dsl_response(request)
+    passed, violations = FirmaValidator.validate_dsl_response(parsed)
     if not passed:
         async with METRICS_LOCK:
             METRICS.validation_failures += 1
@@ -297,15 +311,19 @@ async def emit_cognitive_dsl(
 
     async with METRICS_LOCK:
         METRICS.successful_renders += 1
-    return {"status": "success", "trace_id": request.model_response.trace_id}
+    return {"status": "success", "trace_id": parsed.model_response.trace_id}
 
 @app.post("/api/v1/cognitive/validate")
 async def validate_cognitive_dsl(
-    request: CognitiveEmitRequest,
+    request: dict[str, Any] | None,
     x_api_key: str | None = Header(None, alias="X-API-Key"),
 ) -> ValidationResult:
     _ensure_api_key(x_api_key)
-    passed, violations = FirmaValidator.validate_dsl_response(request)
+    try:
+        parsed = CognitiveEmitRequest.model_validate(request or {})
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors())
+    passed, violations = FirmaValidator.validate_dsl_response(parsed)
     return ValidationResult(status="success" if passed else "failed", violations=violations)
 
 @app.get("/health")
@@ -374,8 +392,7 @@ async def query_telemetry(
 
 @app.get("/api/v1/voice/model")
 def resolve_voice_model(language: str = "en-US", region: str = "us") -> dict[str, str]:
-    lang_key, region_key = language.split("-")[0].lower(), region.lower()
-    model = VOICE_MODEL_MAP.get((lang_key, region_key), f"whisper-general-{lang_key}")
+    model = _resolve_voice_model(language, region)
     return {"language": language, "region": region, "model": model}
 
 # --- WebSocket Endpoints ---
