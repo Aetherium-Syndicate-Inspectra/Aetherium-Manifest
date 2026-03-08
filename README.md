@@ -1,51 +1,218 @@
 # Aetherium Manifest
 
 ## Quick Navigation
-- [English Documentation](#english-documentation)
-- [เอกสารภาษาไทย](#เอกสารภาษาไทย)
-- [Extension Ideas](#extension-ideas)
+- [Vision](#vision)
+- [System Architecture](#system-architecture)
+- [System Layers](#system-layers)
+- [Core Capabilities](#core-capabilities)
+- [Developer Quick Start](#developer-quick-start)
+- [API Reference (Prototype)](#api-reference-prototype)
+- [Security, Internationalization, and Collaboration](#security-internationalization-and-collaboration)
+- [Research & Engineering Roadmap](#research--engineering-roadmap)
+- [Project Structure](#project-structure)
+- [Validation & Tests](#validation--tests)
+- [Contributing](#contributing)
+- [License](#license)
+- [เอกสารภาษาไทย (Thai Documentation)](#เอกสารภาษาไทย-thai-documentation)
+- [Extension Ideas (Legacy)](#extension-ideas-legacy)
 
-## English Documentation
+---
 
-### Overview
-Aetherium Manifest is the frontend expression layer of the Aetherium ecosystem. It visualizes AI intent, confidence, and runtime state through light, motion, and abstract form.
+## Vision
 
-### Architecture
-- **AETHERIUM-GENESIS (Backend):** reasoning core, intent generation, telemetry interpretation.
-- **Aetherium Manifest (Frontend):** visual embodiment and interaction runtime.
-- **Transport:** API/WebSocket contract over AetherBus.
+**Aetherium Manifest** is the perceptual interface of the Aetherium ecosystem — a real-time visualization and interaction layer that expresses AI cognition through light, motion, and abstract forms.
 
-### Current Runtime Capabilities
-- Real-time particle/shape rendering mapped from intent vectors.
-- Voice interaction pipeline (VAD mock + STT mock + intent mapping).
-- Adaptive quality tier and frame-rate management.
-- Accessibility-focused controls with visual microphone feedback.
-- Window manager for all HUD panels:
-  - close (✕) per panel
-  - reopen from Settings > Panels
-  - drag-to-move and resize
-- Settings with 5 tabs: `Display`, `Panels`, `Links`, `Language`, `Voice`.
-- External URL analysis entry point in Settings (`Analyze URL`).
-- Event-driven command bus + telemetry counters + delta-state patch helper.
-- Upgraded to an installable web application (PWA) with manifest, service worker, and core assets.
+Rather than exposing raw machine signals, Manifest translates AI intention, confidence, and system state into dynamic visual structures that humans can perceive and interact with.
 
-### API Gateway (Prototype)
-The `api_gateway/` folder includes a sample Cognitive DSL gateway:
+Modern AI systems are powerful but often opaque. Manifest explores a different paradigm:
+
+> **AI systems should be observable.**
+
+Manifest is designed to surface:
+- intention vectors
+- reasoning activity
+- system telemetry
+- voice interaction signals
+
+as visual phenomena that enable humans to:
+- perceive AI behavior
+- interpret system state
+- interact with cognition in real time
+
+Manifest is the visual language of Aetherium intelligence.
+
+---
+
+## System Architecture
+
+The Aetherium ecosystem is composed of three major layers:
+
+```text
+┌─────────────────────────────────────┐
+│           AETHERIUM MANIFEST        │
+│     Visual Cognition Interface      │
+└─────────────────────────────────────┘
+                  ▲
+                  │
+           AetherBus Transport
+          (API + WebSocket Events)
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│          AETHERIUM GENESIS          │
+│        Cognitive Intelligence       │
+└─────────────────────────────────────┘
+```
+
+### System Layers
+
+#### AETHERIUM-GENESIS (Backend)
+The cognitive core responsible for:
+- reasoning
+- intention generation
+- remote signal interpretation
+- decision synthesis
+
+Genesis generates cognitive signals consumed by Manifest.
+
+#### Aetherium Manifest (Frontend)
+The visualization and interaction runtime responsible for:
+- real-time visual rendering
+- voice interaction pipeline
+- telemetry visualization
+- user control surfaces
+
+Manifest converts cognitive signals into observable structures.
+
+#### Transport Layer (AetherBus)
+Communication between components occurs through an event-driven transport layer built on:
+- REST APIs
+- WebSockets
+- message envelopes
+- async event queues
+
+---
+
+## Core Capabilities
+
+### Cognitive Visualization
+Real-time rendering of particle systems and abstract shapes mapped from AI intention vectors.
+
+### Voice Interaction Pipeline
+Simulated voice interface including:
+- Voice Activity Detection (VAD)
+- Speech-to-Text simulation (STT)
+- intent mapping pipeline
+
+### Adaptive Rendering
+Dynamic adjustment of:
+- frame rate
+- rendering complexity
+- graphical fidelity
+
+based on runtime performance.
+
+### Accessibility-First Controls
+Includes accessible UI primitives such as:
+- microphone visualization
+- simplified interaction panels
+- keyboard and pointer compatibility
+
+### Interactive HUD Panels
+Every panel supports:
+- close button per panel
+- reopen via **Settings → Panels**
+- drag-to-move
+- resize interaction
+
+### Settings System
+Modular configuration with five tabs:
+- `Display`
+- `Panels`
+- `Links`
+- `Language`
+- `Voice`
+
+Includes external URL analysis entrypoint in Settings (`Analyze URL`).
+
+### Progressive Web Application
+Manifest is deployable as a PWA with:
+- installable web app behavior
+- service worker
+- offline-ready assets
+- cached runtime resources
+
+---
+
+## API Reference (Prototype)
+
+The repository includes an experimental Cognitive DSL gateway in `api_gateway/`.
+
+### Cognitive Gateway Endpoints
 - `POST /api/v1/cognitive/emit`
 - `POST /api/v1/cognitive/validate`
-- `GET /health`
-- `WS /ws/cognitive-stream`
+- `GET  /health`
+- `WS   /ws/cognitive-stream`
 
-### AetherBusExtreme Utilities
-`api_gateway/aetherbus_extreme.py` includes:
-- Zero-copy socket send (`memoryview`) + async-safe send helper (`loop.sock_sendall`)
-- Immutable envelope models
-- Async queue bus with backpressure
-- MsgPack helpers
-- NATS async manager
-- State convergence processor
+### Telemetry Endpoints
+- `POST /api/v1/telemetry/ingest`
+- `GET  /api/v1/telemetry/query`
 
-### Run Locally
+### State Sync Endpoint
+- `WS /ws/state-sync/{room_id}`
+
+These interfaces enable structured interaction with cognitive signals, telemetry ingestion/query, and collaborative state synchronization.
+
+### AetherBusExtreme
+`api_gateway/aetherbus_extreme.py` provides high-performance transport primitives:
+- zero-copy socket transmission (`memoryview` + `loop.sock_sendall`)
+- immutable message envelopes
+- async event queue with backpressure control
+- MsgPack serialization helpers
+- async NATS integration for distributed deployments
+- state convergence processor
+
+---
+
+## Security, Internationalization, and Collaboration
+
+### Security Improvements
+#### Async Proxy with SSRF Protection
+External fetches are routed through:
+- `/api/v1/proxy/fetch`
+
+with safeguards including:
+- host allowlists
+- private IP blocking
+- loopback protection
+- RFC reserved network filtering
+
+#### Concurrency Safety
+Mutable runtime state is protected using `asyncio.Lock` for:
+- telemetry stores
+- metrics counters
+- state synchronization rooms
+
+#### Schema Contract Validation
+Payloads are validated using `jsonschema` with non-mutating validation flow.
+
+### Internationalization (i18n)
+Language packs are dynamically loaded from:
+- `locales/*.json`
+
+Supports runtime language switching.
+
+### Multi-User State Synchronization
+Collaborative sessions are available via:
+- `/ws/state-sync/{room_id}`
+
+allowing multiple users to observe and interact with shared cognitive state.
+
+---
+
+## Developer Quick Start
+
+### Run Locally (Frontend)
 ```bash
 python3 -m http.server 4173
 # open http://localhost:4173
@@ -64,17 +231,23 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Frontend: `http://localhost:4173`  
-Gateway: `http://localhost:8000` (OpenAPI docs at `/docs`)
+- Frontend: `http://localhost:4173`
+- Gateway: `http://localhost:8000` (OpenAPI docs at `/docs`)
 
-### Project Structure
-- `index.html`, `service-worker.js`, `app.webmanifest`: PWA frontend runtime.
-- `api_gateway/`: FastAPI-based cognitive gateway and websocket streams.
-- `tools/contracts/`: schema + payload contract validation utilities.
-- `tools/benchmarks/`: latency and stress benchmarking helpers.
-- `docs/`: architecture, interfaces, schemas, safety, and roadmap references.
+---
 
-### Validation & Tests
+## Project Structure
+
+- `index.html`, `service-worker.js`, `app.webmanifest`: frontend runtime and PWA assets
+- `api_gateway/`: FastAPI cognitive gateway and websocket streams
+- `tools/contracts/`: schema and payload contract validation utilities
+- `tools/benchmarks/`: latency and stress benchmark helpers
+- `docs/`: architecture, interfaces, schemas, safety/governance, and roadmap references
+
+---
+
+## Validation & Tests
+
 ```bash
 # API gateway tests
 cd api_gateway && pytest -q
@@ -83,41 +256,81 @@ cd api_gateway && pytest -q
 python3 tools/contracts/contract_checker.py
 ```
 
-### Future Function & Development Proposals
-- Add **scenario presets** (Presentation / Meditation / Debug / Low-power) that switch multiple visual and voice settings in one click.
-- Add **plugin-style intent renderer API** so teams can register custom visual modules without modifying core runtime.
-- Add **session replay mode** (timeline scrub + event bookmarks) for debugging intent, telemetry spikes, and UX quality.
-- Add **policy-driven link analysis** with per-workspace rules, risk scoring, and exportable audit log.
-- Add **hybrid persistence layer**: Redis for real-time state + TimescaleDB/ClickHouse for long-term telemetry analytics.
-- Add **collaboration controls** (roles, room permissions, moderation actions) on top of state-sync channels.
-- Add **voice quality dashboard** showing WER/latency by language-region and automatic fallback recommendations.
-- Add **offline-first runtime packs** (locale + voice + visual profile bundles) for unstable network environments.
+---
+
+## Research & Engineering Roadmap
+
+Future directions:
+
+- **Distributed Runtime State**  
+  Move mutable runtime state to Redis for multi-worker consistency.
+
+- **Persistent Telemetry Database**  
+  Integrate TSDB backends (InfluxDB, TimescaleDB) with retention + downsampling.
+
+- **Signed Proxy Requests**  
+  Add HMAC-signed outbound proxy intent + per-tenant allowlists.
+
+- **Contract Fuzz Testing**  
+  Build property-based payload generators + schema mutation corpus + regression suites.
+
+- **Voice Model Experimentation**  
+  A/B routing and quality tracking by language-region (WER, latency, accuracy).
+
+- **CRDT Collaboration**  
+  Add Yjs/Automerge support for conflict-free collaborative state editing.
+
+- **Scenario Presets**  
+  Add `Presentation`, `Meditation`, `Debug`, `Low-power` multi-setting profiles.
+
+- **Plugin Renderer API**  
+  Enable custom visual modules without modifying core runtime.
+
+- **Session Replay**  
+  Timeline scrub + event bookmarks for debugging intent/telemetry behavior.
 
 ---
 
-## เอกสารภาษาไทย
+## Contributing
+
+Contributions are welcome.
+
+Please open an issue first to discuss:
+- feature proposals
+- architecture improvements
+- experimental visualization models
+
+before submitting large pull requests.
+
+## License
+
+This project is released under the MIT License.
+
+---
+
+## เอกสารภาษาไทย (Thai Documentation)
 
 ### ภาพรวม
-Aetherium Manifest คือเลเยอร์แสดงผลฝั่ง Frontend ของระบบ Aetherium โดยแปลงเจตนาและสถานะของ AI ให้เป็นภาพเคลื่อนไหวเชิงนามธรรม
+Aetherium Manifest คือเลเยอร์แสดงผลฝั่ง Frontend ของระบบ Aetherium โดยแปลงเจตนา (intent), ความมั่นใจ และสถานะ runtime ของ AI ให้เป็นภาพเคลื่อนไหวเชิงนามธรรมที่ผู้ใช้รับรู้และโต้ตอบได้
 
 ### โครงสร้างระบบ
-- **AETHERIUM-GENESIS (Backend):** คิด วิเคราะห์ และสร้าง intent
-- **Aetherium Manifest (Frontend):** แสดงผลและโต้ตอบผู้ใช้
+- **AETHERIUM-GENESIS (Backend):** คิด วิเคราะห์ และสร้าง cognitive/intent signals
+- **Aetherium Manifest (Frontend):** แสดงผลแบบเรียลไทม์และจัดการ interaction
 - **การเชื่อมต่อ:** ผ่าน API/WebSocket บน AetherBus
 
 ### ความสามารถปัจจุบัน
-- ระบบแสดงผลแบบเรียลไทม์ด้วยอนุภาคและรูปทรงตาม intent
+- ระบบแสดงผลเรียลไทม์ด้วยอนุภาคและรูปทรงตาม intent vectors
 - Voice pipeline (VAD/STT แบบ mock) + intent mapping
-- ปรับคุณภาพกราฟิกตามเครื่องและจัดการเฟรมเรต
-- ปุ่มควบคุมที่เป็นมิตรต่อการเข้าถึง (Accessibility)
-- HUD ทุกหน้าต่างมีปุ่มปิด เปิดคืนได้จาก Settings และลาก/ย่อ-ขยายได้
-- Settings แบ่ง 5 แท็บ: `Display`, `Panels`, `Links`, `Language`, `Voice`
-- มีช่องวิเคราะห์ลิงก์ URL ภายนอก
-- มีโครง telemetry + event bus + delta-state สำหรับต่อยอด
-- ยกระดับเป็น installable web application (PWA) พร้อม manifest, service worker และ asset แกนหลัก
+- ปรับคุณภาพกราฟิกและเฟรมเรตตามประสิทธิภาพเครื่อง
+- Controls ที่เป็นมิตรต่อการเข้าถึง (Accessibility)
+- HUD ทุกหน้าต่างมีปุ่มปิด, เปิดคืนจาก Settings > Panels, ลากย้าย และย่อ/ขยายได้
+- Settings 5 แท็บ: `Display`, `Panels`, `Links`, `Language`, `Voice`
+- มีช่องวิเคราะห์ URL ภายนอก
+- มีโครง telemetry + event bus + delta-state helper
+- รองรับ PWA (installable + service worker + asset caching)
 
 ### API Gateway (ต้นแบบ)
-โฟลเดอร์ `api_gateway/` มีตัวอย่าง Cognitive DSL gateway พร้อม endpoint สำหรับ emit/validate/health/websocket
+โฟลเดอร์ `api_gateway/` มี Cognitive DSL gateway พร้อม endpoint สำหรับ emit/validate/health/websocket/telemetry/state-sync
 
 ### วิธีรัน Frontend + API Gateway
 ```bash
@@ -138,22 +351,23 @@ Gateway: `http://localhost:8000` (เอกสาร API ที่ `/docs`)
 ### โครงสร้างโปรเจกต์โดยย่อ
 - `index.html`, `service-worker.js`, `app.webmanifest`: ส่วน frontend และ PWA
 - `api_gateway/`: บริการ FastAPI + websocket สำหรับ cognitive stream
-- `tools/contracts/`: เครื่องมือตรวจสอบความถูกต้องของ schema/payload
-- `tools/benchmarks/`: สคริปต์ benchmark สำหรับ latency และ stress test
+- `tools/contracts/`: เครื่องมือตรวจสอบ schema/payload
+- `tools/benchmarks/`: สคริปต์ benchmark สำหรับ latency/stress
 - `docs/`: เอกสารสถาปัตยกรรม อินเทอร์เฟซ ความปลอดภัย และ roadmap
 
-### ข้อเสนอฟังก์ชันและแนวทางต่อยอด
-- เพิ่ม **Preset การใช้งาน** (Presentation / Meditation / Debug / Low-power) เพื่อสลับค่าการแสดงผลและเสียงหลายรายการในครั้งเดียว
-- เพิ่ม **Plugin Renderer API** สำหรับต่อโมดูลภาพแสดงผลใหม่โดยไม่ต้องแก้แกนหลักของระบบ
-- เพิ่ม **Session Replay** (timeline + bookmark เหตุการณ์สำคัญ) เพื่อใช้ตรวจสอบบั๊กและวิเคราะห์พฤติกรรม intent ย้อนหลัง
-- เพิ่ม **ระบบวิเคราะห์ลิงก์แบบกำหนดนโยบาย** ราย workspace พร้อมคะแนนความเสี่ยงและบันทึก audit export ได้
-- เพิ่ม **Hybrid Data Layer** โดยใช้ Redis สำหรับสถานะเรียลไทม์ และ TimescaleDB/ClickHouse สำหรับ telemetry ระยะยาว
-- เพิ่ม **ฟีเจอร์ collaboration** เช่น role/permission/moderation บนช่อง state-sync
-- เพิ่ม **Voice Quality Dashboard** แสดง WER/latency แยกตามภาษา-ภูมิภาค พร้อมคำแนะนำ fallback อัตโนมัติ
-- เพิ่ม **Offline-first Runtime Pack** (ชุด locale + voice + visual profile) สำหรับสภาพแวดล้อมเครือข่ายไม่เสถียร
+### แนวทางต่อยอด
+- เพิ่ม Preset การใช้งาน (Presentation / Meditation / Debug / Low-power)
+- เพิ่ม Plugin Renderer API
+- เพิ่ม Session Replay (timeline + bookmarks)
+- เพิ่ม policy-driven link analysis พร้อม risk score/audit export
+- เพิ่ม Hybrid Data Layer (Redis + TimescaleDB/ClickHouse)
+- เพิ่ม collaboration controls (role/permission/moderation)
+- เพิ่ม Voice Quality Dashboard (WER/latency แยกภาษา-ภูมิภาค)
+- เพิ่ม Offline-first Runtime Packs
 
+---
 
-## Extension Ideas
+## Extension Ideas (Legacy)
 - Move mutable runtime state to Redis (metrics counters, telemetry cache, ws room membership) for multi-worker consistency.
 - Add signed outbound proxy policy (HMAC request intent + per-tenant allowlist) to harden enterprise SSRF controls.
 - Build contract-fuzz pipeline: property-based payload generators + mutation corpus for schema regression stress tests.
