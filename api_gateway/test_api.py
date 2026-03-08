@@ -1,11 +1,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 from fastapi.testclient import TestClient
-from httpx import Response
+from starlette.websockets import WebSocketDisconnect
 
 from .main import app
 
@@ -44,11 +42,9 @@ def test_validate_missing_api_key(client: TestClient) -> None:
 
 
 def test_websocket_stream_missing_key(client: TestClient) -> None:
-    with client.websocket_connect("/ws/cognitive-stream") as websocket:
-        # Connection should be rejected, but TestClient doesn't expose close code
-        # Instead, we expect no messages and a closed connection.
-        # This is a limitation of the test client's websocket testing API.
-        pass
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/cognitive-stream"):
+            pass
 
 
 def test_websocket_stream_with_query_key(client: TestClient) -> None:
@@ -62,4 +58,3 @@ def test_websocket_stream_with_header_key(client: TestClient) -> None:
     # Note: TestClient doesn't directly support setting headers for websockets.
     # This is a known limitation. We test the query param route as the primary path.
     pass
-
