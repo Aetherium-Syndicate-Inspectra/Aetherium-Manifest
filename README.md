@@ -10,6 +10,7 @@
 - [API Reference (Prototype)](#api-reference-prototype)
 - [Security, Internationalization, and Collaboration](#security-internationalization-and-collaboration)
 - [Research & Engineering Roadmap](#research--engineering-roadmap)
+- [AM-UI Color System](#am-ui-color-system)
 - [Project Structure](#project-structure)
 - [Validation & Tests](#validation--tests)
 - [Contributing](#contributing)
@@ -156,6 +157,10 @@ Intention Vector
 Signal Translation
 │
 ▼
+AM-UI Color Semantics
+(Intention/LifeState → Thermodynamic Palette)
+│
+▼
 Visualization Mapping
 
 ┌───────────────┬───────────────┬───────────────┐
@@ -168,6 +173,12 @@ Real-Time Rendering
 ▼
 Human Perception
 ```
+
+AM-UI Color System acts as a deterministic sublayer between **Signal Translation** and **Visualization Mapping**:
+
+`Intention Vector / LifeState → Color Semantics → Palette Mapping → Shader Uniforms → Particle/Field Rendering`
+
+It turns color into a machine-readable cognition contract rather than ad-hoc styling.
 
 ### 3) Aetherium Intelligence Stack (AI Platform Stack View)
 
@@ -286,6 +297,23 @@ Human Perception
 
 ### Cognitive Visualization
 Real-time rendering of particle systems and abstract shapes mapped from AI intention vectors.
+
+### Cognitive Color Thermodynamics
+Maps intention vectors, reasoning mode, and system load to dynamic color fields using an Aetherium-specific palette (**AM-UI Color System**). Colors are not aesthetic-only; they encode cognitive and thermodynamic state.
+
+Manifest reads:
+- `intent.intent_category`
+- `intent.energy_level`
+- `intent.emotional_valence`
+- `LifeState.mode` (e.g., `NEBULA`, `REASONING`, `DECAY`, `NIRODHA`)
+
+Then applies deterministic AM-UI mapping for:
+- background field color
+- cognition halo color
+- particle tint
+- HUD accent
+
+See `docs/10_AMUI_COLOR_SYSTEM.md` for palette tables, state mapping, and shader binding contracts.
 
 ### Voice Interaction Pipeline
 Simulated voice interface including:
@@ -427,7 +455,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ## Project Structure
 
-- `index.html`, `service-worker.js`, `app.webmanifest`: frontend runtime and PWA assets
+- `index.html`, `am_color_system.js`, `service-worker.js`, `app.webmanifest`: frontend runtime and PWA assets
 - `api_gateway/`: FastAPI cognitive gateway and websocket streams
 - `tools/contracts/`: schema and payload contract validation utilities
 - `tools/benchmarks/`: latency and stress benchmark helpers
@@ -473,10 +501,23 @@ Future directions:
   Add `Presentation`, `Meditation`, `Debug`, `Low-power` multi-setting profiles.
 
 - **Plugin Renderer API**  
-  Enable custom visual modules without modifying core runtime.
+  Enable custom visual modules without modifying core runtime. Plugin renderers SHOULD respect AM-UI contracts for state-to-color mapping and reserved palette slots (`ERROR`, `WARNING`, `NIRODHA`). They MAY add extension palettes, but MUST preserve core semantics (e.g., failure remains in the Plasma Red spectrum).
 
 - **Session Replay**  
   Timeline scrub + event bookmarks for debugging intent/telemetry behavior.
+
+---
+
+## AM-UI Color System
+
+AM-UI Color System is the color-thermodynamic subsystem for Manifest and the color contract between Genesis and Manifest.
+
+- **Contract role:** AI state → color field → light visualization.
+- **Pipeline anchor:** inserted between signal translation and visualization mapping.
+- **Runtime source of truth:** `am_color_system.js` in frontend runtime.
+- **Canonical reference:** `docs/10_AMUI_COLOR_SYSTEM.md`.
+
+For payload experiments, schema extensions can provide optional hints (e.g., `visual_manifestation.color_semantics.color_mode` and `palette_key`) while frontend remains the source of truth for palette semantics.
 
 ---
 
