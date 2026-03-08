@@ -1,5 +1,10 @@
 # Aetherium Manifest
 
+## Quick Navigation
+- [English Documentation](#english-documentation)
+- [เอกสารภาษาไทย](#เอกสารภาษาไทย)
+- [Extension Ideas](#extension-ideas)
+
 ## English Documentation
 
 ### Overview
@@ -46,6 +51,38 @@ python3 -m http.server 4173
 # open http://localhost:4173
 ```
 
+### Run Frontend + API Gateway
+```bash
+# terminal 1
+python3 -m http.server 4173
+
+# terminal 2
+cd api_gateway
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Frontend: `http://localhost:4173`  
+Gateway: `http://localhost:8000` (OpenAPI docs at `/docs`)
+
+### Project Structure
+- `index.html`, `service-worker.js`, `app.webmanifest`: PWA frontend runtime.
+- `api_gateway/`: FastAPI-based cognitive gateway and websocket streams.
+- `tools/contracts/`: schema + payload contract validation utilities.
+- `tools/benchmarks/`: latency and stress benchmarking helpers.
+- `docs/`: architecture, interfaces, schemas, safety, and roadmap references.
+
+### Validation & Tests
+```bash
+# API gateway tests
+cd api_gateway && pytest -q
+
+# contract checks
+python3 tools/contracts/contract_checker.py
+```
+
 ### Recommended Next Steps
 - ✅ Proxy fetch upgraded to async `httpx` with SSRF guardrails (host allowlist + private/link-local/loopback/rfc-reserved IP blocking).
 - ✅ Mutable runtime states are protected with `asyncio.Lock` (metrics, telemetry store, and state-sync rooms) to ensure concurrency safety.
@@ -82,6 +119,29 @@ Aetherium Manifest คือเลเยอร์แสดงผลฝั่ง 
 
 ### API Gateway (ต้นแบบ)
 โฟลเดอร์ `api_gateway/` มีตัวอย่าง Cognitive DSL gateway พร้อม endpoint สำหรับ emit/validate/health/websocket
+
+### วิธีรัน Frontend + API Gateway
+```bash
+# เทอร์มินัล 1
+python3 -m http.server 4173
+
+# เทอร์มินัล 2
+cd api_gateway
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Frontend: `http://localhost:4173`  
+Gateway: `http://localhost:8000` (เอกสาร API ที่ `/docs`)
+
+### โครงสร้างโปรเจกต์โดยย่อ
+- `index.html`, `service-worker.js`, `app.webmanifest`: ส่วน frontend และ PWA
+- `api_gateway/`: บริการ FastAPI + websocket สำหรับ cognitive stream
+- `tools/contracts/`: เครื่องมือตรวจสอบความถูกต้องของ schema/payload
+- `tools/benchmarks/`: สคริปต์ benchmark สำหรับ latency และ stress test
+- `docs/`: เอกสารสถาปัตยกรรม อินเทอร์เฟซ ความปลอดภัย และ roadmap
 
 ### แนวทางต่อยอด
 - ✅ อัปเกรด proxy เป็น async (`httpx`) พร้อม SSRF protection (allowlist + block private/link-local/loopback IP)
