@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 app = FastAPI(title="AGNS Cognitive DSL Gateway", version="1.1.0")
@@ -35,6 +36,12 @@ PROXY_ALLOWED_HOSTS = {
     if host.strip()
 }
 
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("AETHERIUM_CORS_ALLOWED_ORIGINS", "*").split(",")
+    if origin.strip()
+]
+
 VOICE_MODEL_MAP: dict[tuple[str, str], str] = {
     ("th", "apac"): "whisper-thai-pro",
     ("en", "us"): "whisper-english-us",
@@ -50,6 +57,14 @@ MODEL_PROVIDER_MAP = {
     "gpt-4o": "openai",
     "claude-3-opus": "anthropic",
 }
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 # --- Pydantic Models ---
@@ -242,11 +257,6 @@ async def _room(room_id: str) -> StateSyncRoom:
     async with ROOMS_LOCK:
         return STATE_SYNC_ROOMS.setdefault(room_id, StateSyncRoom())
 
-
-def _resolve_voice_model(language: str, region: str) -> str:
-    lang_key = language.split("-")[0].lower()
-    region_key = region.lower()
-    return VOICE_MODEL_MAP.get((lang_key, region_key), f"whisper-general-{lang_key}")
 
 def _is_blocked_proxy_target(hostname: str) -> bool:
     try:

@@ -58,3 +58,15 @@ def test_websocket_stream_with_header_key(client: TestClient) -> None:
     # Note: TestClient doesn't directly support setting headers for websockets.
     # This is a known limitation. We test the query param route as the primary path.
     pass
+
+
+def test_proxy_fetch_supports_cors_preflight(client: TestClient) -> None:
+    response = client.options(
+        "/api/v1/proxy/fetch",
+        headers={
+            "Origin": "https://example.com",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
