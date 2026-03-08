@@ -563,6 +563,11 @@
       <div class="row-head"><span>LOAD (CPU HEAT)</span><span id="load-text">0%</span></div>
       <div class="bar-track"><div class="bar" id="load-bar"></div></div>
     </div>
+    <div class="row stat-row">
+      <div class="row-head"><span>MODE</span><span id="val-mode">NEBULA</span></div>
+      <span class="chip" id="val-trust">trust: 0.50</span>
+    </div>
+    <div id="sys-msg" style="font-size:11px;color:#9fd4ff;">STATUS: ONLINE - AWAITING INTENT</div>
     </div>
 
     <div class="settings-tab" data-tab-content="display">
@@ -648,6 +653,7 @@
   <aside class="hud window" id="conversation" data-window-key="conversation">
     <div><strong>CONVERSATION CONTEXT</strong></div>
     <div id="chat-stream"></div>
+    <div id="terminal"></div>
     <div id="sources">sources: none</div>
   </aside>
 
@@ -770,7 +776,11 @@
       understandingLanguage: document.getElementById('understanding-language'),
       voiceMode: document.getElementById('voice-mode'),
       voiceRegion: document.getElementById('voice-region'),
-      voiceTelemetry: document.getElementById('voice-telemetry')
+      voiceTelemetry: document.getElementById('voice-telemetry'),
+      modeChip: document.getElementById('val-mode'),
+      trustChip: document.getElementById('val-trust'),
+      sysMsg: document.getElementById('sys-msg'),
+      terminal: document.getElementById('terminal')
     };
 
     const panelRegistry = {
@@ -1223,52 +1233,59 @@
       return Math.max(min, Math.min(max, value));
     }
 
-    function normalizeIntentVector(intent = {}) {
+    function normalizeIntentVector(raw = {}) {
+      const intent = raw.intent_vector || raw;
       const fallbackVisual = intent.visual_parameters || {};
       return {
-        intent_category: intent.intent_category || 'chat',
+        intent_category: intent.intent_category || intent.category || 'chat',
         emotional_valence: Number(clamp(intent.emotional_valence ?? 0, -1, 1).toFixed(2)),
-        energy_level: Number(clamp(intent.energy_level ?? 0.2, 0, 1).toFixed(2)),
-        semantic_concepts: Array.isArray(intent.semantic_concepts) ? intent.semantic_concepts : [],
+        energy_level: Number(clamp(intent.energy_level ?? 0.5, 0, 1).toFixed(2)),
+        semantic_concepts: Array.isArray(intent.semantic_concepts)
+          ? intent.semantic_concepts
+          : (Array.isArray(intent.semantic) ? intent.semantic : []),
         visual_parameters: {
-          base_shape: fallbackVisual.base_shape,
-          color_palette: fallbackVisual.color_palette,
-          particle_density: typeof fallbackVisual.particle_density === 'number' ? clamp(fallbackVisual.particle_density, 0, 1) : undefined,
-          turbulence: typeof fallbackVisual.turbulence === 'number' ? clamp(fallbackVisual.turbulence, 0, 1) : undefined,
-          flow_direction: fallbackVisual.flow_direction
+          base_shape: fallbackVisual.base_shape || intent.base_shape || 'nebula_cloud',
+          color_palette: fallbackVisual.color_palette || intent.color || '#FFFFFF',
+          particle_density: typeof fallbackVisual.particle_density === 'number' ? clamp(fallbackVisual.particle_density, 0, 1) : 0.4,
+          turbulence: typeof fallbackVisual.turbulence === 'number' ? clamp(fallbackVisual.turbulence, 0, 1) : 0.25,
+          flow_direction: fallbackVisual.flow_direction || 'orbital'
         },
-        state_flags: {
-          connection_active: Boolean(intent?.state_flags?.connection_active),
-          error_state: Boolean(intent?.state_flags?.error_state)
+        state_flags: intent.state_flags || {
+          connection_active: Boolean(intent.connection_active),
+          error_state: intent.intent_category === 'error' || intent.category === 'error'
         }
       };
     }
 
-    function mapIntentToVisual(intent, lifeState = fsm) {
-      const vector = normalizeIntentVector(intent);
-      const concepts = vector.semantic_concepts.map(item => String(item).toLowerCase());
-      const hasLogicSemantic = concepts.includes('logic') || concepts.includes('deep');
-      const listeningSemantic = concepts.includes('listening');
-      const paradoxSemantic = concepts.includes('paradox');
+    function hasSemantic(intent, keyword) {
+      return (intent.semantic_concepts || []).map(item => String(item).toLowerCase()).includes(String(keyword).toLowerCase());
+    }
 
+    function mapIntentToVisual(intent) {
+      const vector = normalizeIntentVector(intent);
+      const v = vector.visual_parameters || {};
       let baseShape = 'nebula_cloud';
       let flowDirection = 'orbital';
 
-      if (vector.intent_category === 'deep_reasoning' || hasLogicSemantic) {
+      if (vector.intent_category === 'deep_reasoning' || vector.intent_category === 'analysis_request' || hasSemantic(vector, 'logic') || hasSemantic(vector, 'deep')) {
         baseShape = 'spiral_vortex';
         flowDirection = 'inward';
-      } else if (vector.intent_category === 'equilibrium' || listeningSemantic) {
+      } else if (vector.intent_category === 'equilibrium' || hasSemantic(vector, 'listening')) {
         baseShape = 'sphere';
-        flowDirection = 'orbital';
-      } else if (vector.intent_category === 'error' || paradoxSemantic || vector.state_flags.error_state) {
+      } else if (vector.intent_category === 'error' || hasSemantic(vector, 'paradox') || vector.state_flags?.error_state) {
         baseShape = 'cracked_shell';
         flowDirection = 'outward';
       }
 
+      if (v.base_shape) baseShape = v.base_shape;
+      if (v.flow_direction) flowDirection = v.flow_direction;
+
       let colorPalette = '#FFFFFF';
       if (vector.energy_level > 0.8) colorPalette = '#FFD700';
-      else if (lifeState.mode === 'REASONING' || vector.emotional_valence > 0.45) colorPalette = '#800080';
-      else if (vector.state_flags.connection_active) colorPalette = '#00FFFF';
+      else if (hasSemantic(vector, 'wisdom')) colorPalette = '#800080';
+      else if (vector.state_flags?.connection_active) colorPalette = '#00FFFF';
+      else if (vector.intent_category === 'error') colorPalette = '#A52A2A';
+      if (v.color_palette) colorPalette = v.color_palette;
 
       return {
         intent_category: vector.intent_category,
@@ -1276,12 +1293,13 @@
         energy_level: vector.energy_level,
         semantic_concepts: vector.semantic_concepts,
         visual_parameters: {
-          base_shape: vector.visual_parameters.base_shape || baseShape,
-          color_palette: vector.visual_parameters.color_palette || colorPalette,
-          particle_density: Number((vector.visual_parameters.particle_density ?? clamp(0.22 + vector.energy_level * 0.72, 0.2, 0.98)).toFixed(2)),
-          turbulence: Number((vector.visual_parameters.turbulence ?? clamp(0.1 + vector.energy_level * 0.82, 0.08, 0.98)).toFixed(2)),
-          flow_direction: vector.visual_parameters.flow_direction || flowDirection
+          base_shape: baseShape,
+          color_palette: colorPalette,
+          particle_density: typeof v.particle_density === 'number' ? clamp(v.particle_density, 0, 1) : 0.5,
+          turbulence: typeof v.turbulence === 'number' ? clamp(v.turbulence, 0, 1) : clamp(vector.energy_level * 0.5, 0.08, 0.95),
+          flow_direction: flowDirection
         },
+        velocity: 2 + vector.energy_level * 15,
         state_flags: vector.state_flags
       };
     }
@@ -1321,33 +1339,58 @@
       }
     };
 
+    const RitualStates = Object.freeze({
+      IDLE: 'IDLE',
+      LISTENING: 'LISTENING',
+      PROCESSING: 'PROCESSING',
+      MORPHING: 'MORPHING',
+      NIRODHA: 'NIRODHA'
+    });
+
     const ritualStateMachine = {
-      state: 'IDLE',
-      transition(next) {
-        this.state = next;
-        fsm.state = next;
+      current: RitualStates.IDLE,
+      transition(event) {
+        const s = this.current;
+        if (s === RitualStates.IDLE && event === 'PRESS') this.current = RitualStates.LISTENING;
+        else if (s === RitualStates.LISTENING && event === 'SILENCE_DETECTED') this.current = RitualStates.PROCESSING;
+        else if (s === RitualStates.PROCESSING && event === 'INTENT_RECEIVED') this.current = RitualStates.MORPHING;
+        else if (s === RitualStates.MORPHING && event === 'RESET') this.current = RitualStates.IDLE;
+
+        if (event === 'ENTER_NIRODHA') this.current = RitualStates.NIRODHA;
+        else if (s === RitualStates.NIRODHA && event === 'EXIT_NIRODHA') this.current = RitualStates.IDLE;
+
+        fsm.state = this.current;
+        if (this.current === RitualStates.NIRODHA) fsm.mode = 'NIRODHA';
+        else if ((this.current === RitualStates.MORPHING || this.current === RitualStates.PROCESSING) && fsm.mode !== 'DECAY') fsm.mode = 'REASONING';
+        else if (this.current === RitualStates.LISTENING) fsm.mode = 'PERCEPTION';
+        else if (this.current === RitualStates.IDLE && fsm.mode !== 'DECAY') fsm.mode = 'NEBULA';
+
+        updateHUD();
       }
     };
 
     function updateLifeStateFromIntent(vector) {
-      fsm.energy = clamp(fsm.energy - (vector.energy_level * 9 + 0.25), 0, 100);
-      fsm.entropy = clamp(fsm.entropy + vector.energy_level * 18 + 0.4, 0, 100);
+      fsm.energy = clamp(fsm.energy - vector.energy_level * 10, 0, 100);
+      fsm.entropy = clamp(fsm.entropy + vector.energy_level * 15, 0, 100);
       fsm.curiosity = clamp(fsm.curiosity + 0.03, 0, 1);
-      fsm.empathy = clamp(0.5 + vector.emotional_valence * 0.5, 0, 1);
-      if (vector.intent_category === 'deep_reasoning') {
-        fsm.mode = 'REASONING';
-      } else if (vector.intent_category === 'error') {
+      fsm.empathy = clamp(fsm.empathy + Math.max(0, vector.emotional_valence) * 0.05, 0, 1);
+
+      if (vector.intent_category === 'error' || hasSemantic(vector, 'paradox')) {
+        fsm.trust = clamp(fsm.trust + 0.05, 0, 1);
         fsm.mode = 'DECAY';
-        fsm.trust = clamp(fsm.trust + 0.08, 0, 1);
-      } else {
+      } else if (vector.intent_category === 'deep_reasoning' || vector.intent_category === 'analysis_request' || hasSemantic(vector, 'logic') || hasSemantic(vector, 'deep')) {
+        fsm.mode = 'REASONING';
+      } else if (vector.intent_category === 'equilibrium') {
         fsm.mode = 'PERCEPTION';
+      } else {
+        fsm.mode = 'NEBULA';
       }
-      if (fsm.energy <= 1) fsm.mode = 'NIRODHA';
+
+      if (fsm.energy <= 0) enterNirodha();
     }
 
     function applyIntentVector(intentVector, source = 'aetherbus') {
-      ritualStateMachine.transition('MORPHING');
-      const mapped = mapIntentToVisual(intentVector, fsm);
+      const mapped = mapIntentToVisual(intentVector);
       updateLifeStateFromIntent(mapped);
 
       const shapeAlias = {
@@ -1371,7 +1414,41 @@
       particles = Array.from({ length: targetCount }, () => new Particle());
       refs.json.textContent = JSON.stringify(mapped, null, 2);
       addBubble('system', `[${source}] intent_vector:${mapped.intent_category} -> ${mapped.visual_parameters.base_shape}`);
-      ritualStateMachine.transition('PROCESSING');
+      ritualStateMachine.transition('INTENT_RECEIVED');
+      logToTerminalFromIntent(mapped);
+    }
+
+    let nirodhaActive = false;
+
+    function enterNirodha() {
+      if (nirodhaActive) return;
+      nirodhaActive = true;
+      ritualStateMachine.transition('ENTER_NIRODHA');
+      document.body.classList.add('nirodha-mode');
+      if (refs.sysMsg) refs.sysMsg.textContent = 'STATUS: NIRODHA (RECHARGING...)';
+    }
+
+    function exitNirodha() {
+      nirodhaActive = false;
+      ritualStateMachine.transition('EXIT_NIRODHA');
+      document.body.classList.remove('nirodha-mode');
+      if (refs.sysMsg) refs.sysMsg.textContent = 'STATUS: ONLINE - AWAITING INTENT';
+    }
+
+    function updateHUD() {
+      if (refs.modeChip) refs.modeChip.textContent = fsm.mode;
+      if (refs.trustChip) refs.trustChip.textContent = `trust: ${fsm.trust.toFixed(2)}`;
+      const settingsPanel = panelRegistry.settings;
+      if (settingsPanel) settingsPanel.classList.toggle('critical-state', fsm.energy < 15 && !nirodhaActive);
+    }
+
+    function logToTerminalFromIntent(intent) {
+      if (!refs.terminal) return;
+      const row = document.createElement('div');
+      row.textContent = `> Intent: ${intent.intent_category} | E=${intent.energy_level.toFixed(2)} | V=${intent.emotional_valence.toFixed(2)}`;
+      refs.terminal.appendChild(row);
+      while (refs.terminal.childNodes.length > 15) refs.terminal.removeChild(refs.terminal.firstChild);
+      refs.terminal.scrollTop = refs.terminal.scrollHeight;
     }
 
     function runSystemConsistencyCheck() {
@@ -1459,18 +1536,17 @@
 
     function evolveState() {
       if (drawSettings.frozen) {
-        ritualStateMachine.transition('NIRODHA');
-        fsm.mode = 'NIRODHA';
+        enterNirodha();
         return;
       }
 
-      if (fsm.mode === 'NIRODHA' || ritualStateMachine.state === 'NIRODHA') {
+      if (fsm.mode === 'NIRODHA' || ritualStateMachine.current === 'NIRODHA') {
         fsm.energy = clamp(fsm.energy + 0.28, 0, 100);
         fsm.load = clamp(fsm.load - 0.18, 0, 100);
         fsm.entropy = clamp(fsm.entropy - 0.2, 0, 100);
         if (fsm.energy > 45) {
           fsm.mode = 'NEBULA';
-          ritualStateMachine.transition('IDLE');
+          exitNirodha();
         }
         return;
       }
@@ -1480,11 +1556,10 @@
       fsm.load = clamp(fsm.load * 0.994, 0, 100);
 
       if (fsm.energy <= 8) {
-        fsm.mode = 'NIRODHA';
-        ritualStateMachine.transition('NIRODHA');
-      } else if (ritualStateMachine.state === 'PROCESSING' || ritualStateMachine.state === 'MORPHING') {
+        enterNirodha();
+      } else if (ritualStateMachine.current === 'PROCESSING' || ritualStateMachine.current === 'MORPHING') {
         fsm.mode = 'REASONING';
-      } else if (ritualStateMachine.state === 'LISTENING') {
+      } else if (ritualStateMachine.current === 'LISTENING') {
         fsm.mode = 'PERCEPTION';
       } else {
         fsm.mode = 'NEBULA';
@@ -1547,10 +1622,10 @@
     function setFreezeMode(nextFrozen) {
       drawSettings.frozen = nextFrozen;
       if (drawSettings.frozen) {
-        fsm.state = 'NIRODHA';
+        enterNirodha();
         addBubble('system', 'freeze mode enabled');
       } else {
-        fsm.state = 'IDLE';
+        exitNirodha();
         addBubble('system', 'draw mode resumed');
       }
       markTimeline(drawSettings.frozen ? 'freeze' : 'draw');
@@ -1862,13 +1937,13 @@
 
     async function processUserInput(text) {
       addBubble('user', text);
-      ritualStateMachine.transition('LISTENING');
+      ritualStateMachine.transition('PRESS');
       fsm.mode = 'PERCEPTION';
       await processTranscript(text, 'text');
     }
 
     function renderHUD() {
-      refs.stateText.textContent = fsm.state;
+      refs.stateText.textContent = ritualStateMachine.current;
       refs.energyText.textContent = `${Math.round(fsm.energy)}%`;
       refs.entropyText.textContent = `${Math.round(fsm.entropy)}%`;
       refs.loadText.textContent = `${Math.round(fsm.load)}%`;
@@ -2012,6 +2087,28 @@
     }
 
     let stateSyncSocket = null;
+    let ws;
+    function initAetherBus() {
+      const url = window.AETHERBUS_URL || runtimeConfig.gatewayBaseUrl.replace('http', 'ws') + '/ws/state-sync/manifest-room?user_id=aetherium';
+      try {
+        ws = new WebSocket(url);
+        ws.addEventListener('message', event => {
+          try {
+            const { type, payload } = JSON.parse(event.data);
+            if (type === 'intent_vector') {
+              applyIntentVector(normalizeIntentVector(payload), 'aetherbus');
+            } else if (type === 'visual_parameters') {
+              neuralShaderInstance.updateParameters(payload);
+            }
+          } catch (error) {
+            console.error('AetherBus message parse error', error);
+          }
+        });
+      } catch (error) {
+        addBubble('system', `aetherbus offline: ${error.message}`);
+      }
+    }
+
     function initStateSync() {
       const session = `u-${Math.random().toString(16).slice(2, 9)}`;
       const wsUrl = runtimeConfig.gatewayBaseUrl.replace('http', 'ws') + `/ws/state-sync/manifest-room?user_id=${session}`;
@@ -2102,7 +2199,7 @@
     document.getElementById('toggle-box-3').addEventListener('click', () => toggleMiniBox(3));
 
     const voiceSystem = initializeVoiceSystem(async (audioBlob) => {
-      ritualStateMachine.transition('PROCESSING');
+      ritualStateMachine.transition('SILENCE_DETECTED');
       fsm.mode = 'REASONING';
       const transcript = await transcribeAudio(audioBlob);
       addBubble('user', transcript);
@@ -2141,9 +2238,7 @@
     });
 
     document.getElementById('nirodha-btn').addEventListener('click', () => {
-      setFreezeMode(true);
-      ritualStateMachine.transition('NIRODHA');
-      fsm.mode = 'NIRODHA';
+      setFreezeMode(!nirodhaActive);
       fsm.shape = 'cloud';
       fsm.intentCategory = 'maintenance';
       fsm.energyLevel = 0.05;
@@ -2198,7 +2293,9 @@
     renderHUD();
     translateUi(runtimeConfig.displayLanguage);
     refreshVoiceModel();
+    initAetherBus();
     initStateSync();
+    ritualStateMachine.transition('RESET');
     setInterval(flushTelemetryToTimeSeries, 15000);
     requestAnimationFrame(tick);
 
