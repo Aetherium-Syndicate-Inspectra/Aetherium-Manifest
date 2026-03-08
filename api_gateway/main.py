@@ -246,11 +246,24 @@ def _is_blocked_proxy_target(hostname: str) -> bool:
     try:
         for _, _, _, _, sockaddr in socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP):
             address = ipaddress.ip_address(sockaddr[0])
-            if address.is_private or address.is_loopback or address.is_link_local:
+            if (
+                address.is_private
+                or address.is_loopback
+                or address.is_link_local
+                or address.is_reserved
+                or address.is_unspecified
+                or address.is_multicast
+            ):
                 return True
     except socket.gaierror:
         return True
     return False
+
+
+def _resolve_voice_model(language: str, region: str) -> str:
+    lang_key = language.split("-")[0].lower()
+    region_key = region.lower()
+    return VOICE_MODEL_MAP.get((lang_key, region_key), f"whisper-general-{lang_key}")
 
 # --- API Endpoints ---
 
@@ -374,8 +387,7 @@ async def query_telemetry(
 
 @app.get("/api/v1/voice/model")
 def resolve_voice_model(language: str = "en-US", region: str = "us") -> dict[str, str]:
-    lang_key, region_key = language.split("-")[0].lower(), region.lower()
-    model = VOICE_MODEL_MAP.get((lang_key, region_key), f"whisper-general-{lang_key}")
+    model = _resolve_voice_model(language, region)
     return {"language": language, "region": region, "model": model}
 
 # --- WebSocket Endpoints ---
